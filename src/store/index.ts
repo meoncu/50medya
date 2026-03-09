@@ -3,7 +3,9 @@ import type { User, Post, Group } from '../types'
 
 interface AppStore {
   user: User | null
+  authLoading: boolean
   setUser: (user: User | null) => void
+  setAuthLoading: (v: boolean) => void
 
   posts: Post[]
   setPosts: (posts: Post[]) => void
@@ -17,7 +19,9 @@ interface AppStore {
 
 export const useStore = create<AppStore>((set) => ({
   user: null,
+  authLoading: true,
   setUser: (user) => set({ user }),
+  setAuthLoading: (v) => set({ authLoading: v }),
 
   posts: [],
   setPosts: (posts) => set({ posts }),

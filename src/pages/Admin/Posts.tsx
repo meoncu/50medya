@@ -113,7 +113,12 @@ export function AdminPosts() {
           {preview && (
             <div className="border border-slate-200 rounded-xl overflow-hidden mb-3">
               {preview.thumbnail && (
-                <img src={preview.thumbnail} alt="" className="w-full h-40 object-cover" />
+                <img
+                  src={preview.thumbnail}
+                  alt=""
+                  className="w-full h-40 object-cover"
+                  referrerPolicy="no-referrer"
+                />
               )}
               <div className="p-3">
                 <input

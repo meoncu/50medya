@@ -13,7 +13,7 @@ import { AdminPosts } from './pages/Admin/Posts'
 import { AdminGroups } from './pages/Admin/Groups'
 import { AdminSettings } from './pages/Admin/Settings'
 
-function Bootstrap() {
+function AppProviders() {
   useAuth()
   useGroups()
   return <Outlet />
@@ -23,8 +23,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route element={<Bootstrap />}>
+        <Route element={<AppProviders />}>
+          <Route path="/login" element={<Login />} />
+
           <Route
             element={
               <AuthGuard>

@@ -1,19 +1,58 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, Share2, Play, Image as ImageIcon } from 'lucide-react'
+import { Download, Share2, Play, Image as ImageIcon, RefreshCw } from 'lucide-react'
+import { doc, updateDoc } from 'firebase/firestore'
+import { db } from '../../services/firebase'
 import type { Post } from '../../types'
 import { platformLabel, platformColor, timeAgo, cn } from '../../lib/utils'
 import { useStore } from '../../store'
+import { fetchLinkPreview } from '../../services/linkPreview'
 
 interface PostCardProps {
   post: Post
   groupName?: string
 }
 
-export function PostCard({ post, groupName }: PostCardProps) {
+export function PostCard({ post: initialPost, groupName }: PostCardProps) {
+  const [post, setPost] = useState(initialPost)
+  const user = useStore((s) => s.user)
   const groups = useStore((s) => s.groups)
   const group = groups.find((g) => g.id === post.groupId)
   const [imgError, setImgError] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+
+  // Auto-sync if data is missing and user is admin
+  useEffect(() => {
+    // Only internal/admin sync
+    const isAdmin = user?.email === import.meta.env.VITE_ADMIN_EMAIL
+    const isGeneric = post.title === 'X (Twitter) Paylaşımı' || post.title === post.url
+    const isMissingThumb = !post.thumbnail
+
+    if (isAdmin && (isGeneric || isMissingThumb) && !syncing) {
+      handleSync()
+    }
+  }, [post.id, user, post.title, post.thumbnail])
+
+  async function handleSync() {
+    if (syncing) return
+    setSyncing(true)
+    try {
+      const result = await fetchLinkPreview(post.url)
+      if (result && result.title && result.title !== 'X (Twitter) Paylaşımı' && result.title !== post.url) {
+        const updates = {
+          title: result.title,
+          description: result.description || '',
+          thumbnail: result.thumbnail || '',
+        }
+        await updateDoc(doc(db, 'posts', post.id), updates)
+        setPost({ ...post, ...updates })
+      }
+    } catch (err) {
+      console.error('PostCard sync error:', err)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   async function handleShare() {
     if (navigator.share) {
@@ -32,11 +71,16 @@ export function PostCard({ post, groupName }: PostCardProps) {
               src={post.thumbnail}
               alt={post.title}
               className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
               onError={() => setImgError(true)}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <ImageIcon size={40} className="text-slate-300" />
+              {syncing ? (
+                <RefreshCw size={30} className="text-primary-300 animate-spin" />
+              ) : (
+                <ImageIcon size={40} className="text-slate-300" />
+              )}
             </div>
           )}
           {post.mediaType === 'video' && (

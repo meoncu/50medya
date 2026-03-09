@@ -43,9 +43,16 @@ export async function deleteGroup(id: string): Promise<void> {
 
 export function subscribeToGroups(callback: (groups: Group[]) => void) {
   const q = query(collection(db, 'groups'), orderBy('order', 'asc'))
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => toGroup(d.id, d.data())))
-  })
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((d) => toGroup(d.id, d.data())))
+    },
+    (error) => {
+      console.error('Error in subscribeToGroups:', error)
+      callback([])
+    }
+  )
 }
 
 export async function seedDefaultGroups(): Promise<void> {

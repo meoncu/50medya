@@ -6,6 +6,7 @@ export function usePosts(groupId?: string | null) {
   const { posts, setPosts } = useStore()
 
   useEffect(() => {
+    setPosts([]) // Clear current posts when switching group
     let unsub: () => void
     if (groupId) {
       unsub = subscribeToGroupPosts(groupId, setPosts)

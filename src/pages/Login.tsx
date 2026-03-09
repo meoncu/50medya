@@ -1,27 +1,34 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { signInWithGoogle } from '../services/auth'
 import { useStore } from '../store'
 
 export function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const navigate = useNavigate()
   const user = useStore((s) => s.user)
+  const authLoading = useStore((s) => s.authLoading)
 
-  if (user) {
-    navigate('/')
-    return null
-  }
+  if (authLoading) return null
+  if (user) return <Navigate to="/" replace />
 
   async function handleGoogleSignIn() {
     setLoading(true)
     setError('')
     try {
       await signInWithGoogle()
-      navigate('/')
-    } catch (e) {
-      setError('Giriş yapılamadı. Lütfen tekrar deneyin.')
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code ?? ''
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        // kullanıcı popup'ı kapattı, hata gösterme
+      } else if (code === 'auth/unauthorized-domain') {
+        setError('Bu domain Firebase\'de yetkili değil. Console\'dan localhost ekleyin.')
+      } else if (code === 'auth/operation-not-allowed') {
+        setError('Google girişi Firebase\'de aktif değil. Authentication > Google provider\'ı etkinleştirin.')
+      } else {
+        setError(`Hata: ${code || 'Bilinmeyen hata'}`)
+      }
+      console.error('Login error:', e)
     } finally {
       setLoading(false)
     }

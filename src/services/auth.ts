@@ -30,22 +30,27 @@ export async function signOutUser(): Promise<void> {
 
 export function onAuthChange(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, async (firebaseUser) => {
-    if (!firebaseUser) {
+    try {
+      if (!firebaseUser) {
+        callback(null)
+        return
+      }
+      const snap = await getDoc(doc(db, 'users', firebaseUser.uid))
+      if (snap.exists()) {
+        callback(snap.data() as User)
+      } else {
+        const isAdmin = firebaseUser.email === ADMIN_EMAIL
+        callback({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          displayName: firebaseUser.displayName || '',
+          photoURL: firebaseUser.photoURL || '',
+          isAdmin,
+        })
+      }
+    } catch (error) {
+      console.error('Error in onAuthChange:', error)
       callback(null)
-      return
-    }
-    const snap = await getDoc(doc(db, 'users', firebaseUser.uid))
-    if (snap.exists()) {
-      callback(snap.data() as User)
-    } else {
-      const isAdmin = firebaseUser.email === ADMIN_EMAIL
-      callback({
-        uid: firebaseUser.uid,
-        email: firebaseUser.email || '',
-        displayName: firebaseUser.displayName || '',
-        photoURL: firebaseUser.photoURL || '',
-        isAdmin,
-      })
     }
   })
 }

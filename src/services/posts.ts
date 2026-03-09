@@ -77,23 +77,43 @@ export async function getAllPosts(): Promise<Post[]> {
 
 export function subscribeToLatestPosts(callback: (posts: Post[]) => void) {
   const q: Query<DocumentData> = query(
-    collection(db, 'posts'),
-    where('published', '==', true),
-    orderBy('createdAt', 'desc')
+    collection(db, 'posts')
   )
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => toPost(d.id, d.data())))
-  })
+  return onSnapshot(
+    q,
+    (snap) => {
+      const allPosts = snap.docs.map((d) => toPost(d.id, d.data()))
+      // Sort in memory by date descending
+      const sorted = allPosts
+        .filter(p => p.published)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      callback(sorted)
+    },
+    (error) => {
+      console.error('Error in subscribeToLatestPosts:', error)
+      callback([])
+    }
+  )
 }
 
 export function subscribeToGroupPosts(groupId: string, callback: (posts: Post[]) => void) {
   const q: Query<DocumentData> = query(
     collection(db, 'posts'),
-    where('groupId', '==', groupId),
-    where('published', '==', true),
-    orderBy('createdAt', 'desc')
+    where('groupId', '==', groupId)
   )
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => toPost(d.id, d.data())))
-  })
+  return onSnapshot(
+    q,
+    (snap) => {
+      const allPosts = snap.docs.map((d) => toPost(d.id, d.data()))
+      // Sort in memory by date descending
+      const sorted = allPosts
+        .filter(p => p.published)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      callback(sorted)
+    },
+    (error) => {
+      console.error('Error in subscribeToGroupPosts:', error)
+      callback([])
+    }
+  )
 }

@@ -1,7 +1,26 @@
+import { useState } from 'react'
 import { useStore } from '../../store'
+import { seedDefaultGroups } from '../../services/groups'
 
 export function AdminSettings() {
   const user = useStore((s) => s.user)
+  const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState('')
+
+  async function handleSeed() {
+    if (!confirm('Varsayılan grupları eklemek istediğinize emin misiniz?')) return
+    setLoading(true)
+    setStatus('')
+    try {
+      await seedDefaultGroups()
+      setStatus('Gruplar başarıyla eklendi.')
+    } catch (e: unknown) {
+      console.error(e)
+      setStatus('Hata oluştu.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="p-4 max-w-lg">
@@ -25,6 +44,19 @@ export function AdminSettings() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-4">
+        <h2 className="font-semibold text-slate-700 mb-2">Veritabanı Araçları</h2>
+        <p className="text-xs text-slate-500 mb-4">Başlangıç grupları bulunmuyorsa buradan ekleyebilirsiniz.</p>
+        <button
+          onClick={handleSeed}
+          disabled={loading}
+          className="w-full bg-slate-100 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-200 transition-colors disabled:opacity-50"
+        >
+          {loading ? 'İşleniyor...' : 'Varsayılan Grupları Oluştur'}
+        </button>
+        {status && <p className="text-xs mt-2 text-primary-600">{status}</p>}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-4">
