@@ -29,6 +29,7 @@ function toPost(id: string, data: DocumentData): Post {
     createdAt: (data.createdAt as Timestamp)?.toDate() ?? new Date(),
     createdBy: data.createdBy,
     published: data.published ?? true,
+    viewerNotes: data.viewerNotes,
   }
 }
 

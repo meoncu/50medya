@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Download, Share2, ExternalLink, Copy, Check, Sparkles, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Download, Share2, ExternalLink, Copy, Check, Sparkles, RefreshCw, StickyNote, Save } from 'lucide-react'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import type { Post } from '../types'
@@ -19,6 +19,9 @@ export function PostDetail() {
   const [syncing, setSyncing] = useState(false)
   const [summary, setSummary] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [isEditingNote, setIsEditingNote] = useState(false)
+  const [savingNote, setSavingNote] = useState(false)
   const groups = useStore((s) => s.groups)
   const user = useStore((s) => s.user)
 
@@ -39,8 +42,10 @@ export function PostDetail() {
         createdAt: d.createdAt?.toDate() ?? new Date(),
         createdBy: d.createdBy,
         published: d.published,
+        viewerNotes: d.viewerNotes,
       }
       setPost(postData)
+      setNoteText(postData.viewerNotes || '')
 
       // Auto-sync if it's a generic placeholder
       if (postData.platform === 'twitter' && postData.title === 'X (Twitter) Paylaşımı' && !syncing) {
@@ -142,6 +147,23 @@ export function PostDetail() {
     window.open(`https://notebooklm.google.com/`, '_blank')
   }
 
+  async function handleSaveNote() {
+    if (!post || !id) return
+    setSavingNote(true)
+    try {
+      await updateDoc(doc(db, 'posts', id), {
+        viewerNotes: noteText
+      })
+      setPost({ ...post, viewerNotes: noteText })
+      setIsEditingNote(false)
+    } catch (err) {
+      console.error('Error saving note:', err)
+      alert('Not kaydedilemedi.')
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -221,6 +243,64 @@ export function PostDetail() {
               <p className="text-sm text-slate-600 leading-relaxed font-normal whitespace-pre-wrap">{post.description}</p>
             </div>
           )}
+
+          {/* Viewer Notes Section */}
+          <div className="mb-6 p-4 bg-amber-50/50 border border-amber-100 rounded-2xl">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
+                <StickyNote size={18} />
+                <span>İzleyici Notları</span>
+              </div>
+              {!isEditingNote && (
+                <button
+                  onClick={() => setIsEditingNote(true)}
+                  className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors"
+                >
+                  {post.viewerNotes ? 'Düzenle' : 'Not Ekle'}
+                </button>
+              )}
+            </div>
+
+            {isEditingNote ? (
+              <div className="space-y-3">
+                <textarea
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="Bu içerik hakkında bir not bırakın..."
+                  className="w-full min-h-[100px] p-3 text-sm bg-white border border-amber-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all resize-none"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => {
+                      setIsEditingNote(false)
+                      setNoteText(post.viewerNotes || '')
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    onClick={handleSaveNote}
+                    disabled={savingNote}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
+                  >
+                    {savingNote ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save size={14} />}
+                    Kaydet
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-amber-800/80 leading-relaxed italic">
+                {post.viewerNotes ? (
+                  <p className="whitespace-pre-wrap">{post.viewerNotes}</p>
+                ) : (
+                  <p className="text-amber-600/50">Henüz bir not eklenmemiş.</p>
+                )}
+              </div>
+            )}
+          </div>
+
           <p className="text-xs text-slate-400 mb-4">{timeAgo(post.createdAt)}</p>
 
           <a href={post.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-primary-600 hover:underline mb-6 break-all">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, Share2, Play, Image as ImageIcon, RefreshCw } from 'lucide-react'
+import { Download, Share2, Play, Image as ImageIcon, RefreshCw, StickyNote } from 'lucide-react'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../services/firebase'
 import type { Post } from '../../types'
@@ -112,7 +112,15 @@ export function PostCard({ post: initialPost, groupName }: PostCardProps) {
         </Link>
 
         <div className="mt-2 flex items-center justify-between">
-          <span className="text-xs text-slate-400">{timeAgo(post.createdAt)}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400">{timeAgo(post.createdAt)}</span>
+            {post.viewerNotes && (
+              <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-100">
+                <StickyNote size={10} />
+                NOT
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1">
             <a
               href={`/api/download?url=${encodeURIComponent(post.url)}&type=${post.mediaType}`}
@@ -131,6 +139,13 @@ export function PostCard({ post: initialPost, groupName }: PostCardProps) {
             >
               <Share2 size={16} />
             </button>
+            <Link
+              to={`/post/${post.id}`}
+              className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+              title="İzleyici Notları"
+            >
+              <StickyNote size={16} />
+            </Link>
           </div>
         </div>
       </div>

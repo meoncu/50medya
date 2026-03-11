@@ -13,6 +13,7 @@ export interface Post {
   createdAt: Date
   createdBy: string
   published: boolean
+  viewerNotes?: string
 }
 
 export interface Group {

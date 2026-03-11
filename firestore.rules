@@ -24,6 +24,8 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if true;
       allow write: if isAdmin();
+      allow update: if request.auth != null && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewerNotes']);
     }
     
     // Notification logs (if any)
