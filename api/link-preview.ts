@@ -19,7 +19,6 @@ function decodeHtml(html: string): string {
     .replace(/&#x15E;/g, "Ş")
     .replace(/&#x11F;/g, "ğ")
     .replace(/&#x11E;/g, "Ğ")
-    .replace(/&#x131;/g, "ı")
     .replace(/&nbsp;/g, ' ')
     .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec))
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
@@ -29,7 +28,6 @@ async function translateText(text: string): Promise<string> {
   if (!text || text.length < 10) return text;
 
   try {
-    // A more explicit prompt to ensure translation happens
     const prompt = `Task: Translate the following social media post into natural, current Turkish. 
     Rule 1: If it's already in Turkish, return it as is. 
     Rule 2: Otherwise, provide a high-quality Turkish translation. 
@@ -69,18 +67,18 @@ export default async function handler(req: Request) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
-    'Cache-Control': 'no-store, no-cache, must-revalidate' // Prevent caching issues
+    'Cache-Control': 'no-store, no-cache, must-revalidate'
   }
 
-  // Normalize URL
   let targetUrl = originalUrl.trim()
   const isTwitter = targetUrl.includes('x.com') || targetUrl.includes('twitter.com')
   const isInstagram = targetUrl.includes('instagram.com')
 
-  // Helper to proxy images
   const proxyImage = (url: string) => {
     if (!url) return ''
-    if (url.includes('twimg.com') || url.includes('x.com') || url.includes('twitter.com') || url.includes('fxtwitter.com') || url.includes('cdninstagram.com') || url.includes('instagram.com')) {
+    // Use weserv.nl to bypass referer/CORS blocks. 
+    // It's very effective for Twitter and Instagram CDN links.
+    if (url.includes('twimg.com') || url.includes('cdninstagram.com') || url.includes('fbcdn.net') || url.includes('instagram.com')) {
       return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&default=identicon`
     }
     return url
@@ -106,13 +104,7 @@ export default async function handler(req: Request) {
       ]
       for (const p of proxies) {
         try {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 4000)
-          const res = await fetch(p, { 
-            headers: { 'Accept': 'application/json' },
-            signal: controller.signal 
-          })
-          clearTimeout(timeoutId)
+          const res = await fetch(p, { headers: { 'Accept': 'application/json' }, timeout: 4000 })
           if (res.ok) {
             const data = await res.json()
             const tweet = data.tweet || data
@@ -129,40 +121,53 @@ export default async function handler(req: Request) {
   }
 
   // B. Instagram Handling
-  if (isInstagram && !result.description) {
-    // Try to use ddinstagram for metadata scraping
-    const ddUrl = targetUrl.replace('instagram.com', 'ddinstagram.com')
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
-      const res = await fetch(ddUrl, { 
-        headers: { 'User-Agent': 'facebookexternalhit/1.1 Twitterbot/1.0' },
-        signal: controller.signal
-      })
-      clearTimeout(timeoutId)
-      if (res.ok) {
-        const html = await res.text()
-        const getMeta = (p: string) => {
-          const r = new RegExp(`<meta[^>]+(?:property|name)=["'](?:og:|twitter:)?${p}["'][^>]+content=["']([^"']+)["']`, 'i')
-          return html.match(r)?.[1] || ''
+  if (isInstagram) {
+    // 1. Try to get thumbnail via direct media endpoint (works for most public posts)
+    const idMatch = targetUrl.match(/\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/)
+    if (idMatch) {
+      const shortcode = idMatch[1]
+      result.thumbnail = `https://images.weserv.nl/?url=${encodeURIComponent(`https://www.instagram.com/p/${shortcode}/media/?size=l`)}&default=identicon`
+    }
+
+    // 2. Scraping for text
+    const scrapUrls = [
+      targetUrl.replace('instagram.com', 'ddinstagram.com'),
+      targetUrl.includes('?') ? targetUrl.split('?')[0] + 'embed/captioned/' : (targetUrl.endsWith('/') ? targetUrl + 'embed/captioned/' : targetUrl + '/embed/captioned/')
+    ]
+
+    for (const urlToScrap of scrapUrls) {
+      if (result.description && result.title && result.thumbnail) break;
+      try {
+        const res = await fetch(urlToScrap, { 
+          headers: { 'User-Agent': 'facebookexternalhit/1.1' },
+          timeout: 4000
+        })
+        if (res.ok) {
+          const html = await res.text()
+          const getMeta = (p: string) => {
+            const r = new RegExp(`<meta[^>]+(?:property|name)=["'](?:og:|twitter:)?${p}["'][^>]+content=["']([^"']+)["']`, 'i')
+            return html.match(r)?.[1] || ''
+          }
+          
+          if (!result.description) result.description = getMeta('description')
+          if (!result.title || result.title.includes('Instagram')) {
+             const ogTitle = getMeta('og:title') || getMeta('title')
+             if (ogTitle && !ogTitle.includes('Instagram')) result.title = ogTitle
+          }
+          // If we don't have a thumbnail yet or native media failed, try og:image from ddinstagram
+          if (!result.thumbnail || result.thumbnail.includes('identicon')) {
+             const ogImage = getMeta('image') || getMeta('image:src')
+             if (ogImage) result.thumbnail = proxyImage(ogImage)
+          }
         }
-        result.description = getMeta('description') || ''
-        result.title = getMeta('title') || ''
-        result.thumbnail = proxyImage(getMeta('image') || getMeta('image:src') || '')
-        
-        // Sometimes ddinstagram gives better titles in og:title
-        if (!result.title || result.title.includes('Instagram')) {
-           const ogTitle = getMeta('og:title')
-           if (ogTitle && !ogTitle.includes('Instagram')) result.title = ogTitle
-        }
-      }
-    } catch (e) { }
+      } catch (e) { }
+    }
   }
 
-  // C. General Scraping fallback if needed
+  // C. General Scraping fallback
   if (!result.description && !result.title) {
     try {
-      const res = await fetch(targetUrl, { headers: { 'User-Agent': 'facebookexternalhit/1.1 Twitterbot/1.0' } })
+      const res = await fetch(targetUrl, { headers: { 'User-Agent': 'facebookexternalhit/1.1' } })
       if (res.ok) {
         const html = await res.text()
         const getMeta = (p: string) => {
@@ -171,7 +176,9 @@ export default async function handler(req: Request) {
         }
         result.title = getMeta('title') || html.match(/<title>([^<]+)<\/title>/i)?.[1] || ''
         result.description = getMeta('description') || ''
-        result.thumbnail = proxyImage(getMeta('image') || getMeta('image:src') || getMeta('twitter:image') || '')
+        if (!result.thumbnail) {
+          result.thumbnail = proxyImage(getMeta('image') || getMeta('image:src') || getMeta('twitter:image') || '')
+        }
       }
     } catch (e) { }
   }
@@ -184,11 +191,8 @@ export default async function handler(req: Request) {
   }
 
   // --- 2. AI TRANSLATION ---
-  // Translate if it's more than just a link and we have content
   const textToTranslate = result.description || result.title;
   if (textToTranslate && textToTranslate.length > 8 && textToTranslate !== originalUrl) {
-    // Even if it has Turkish chars, user might be forcing update. 
-    // AI is smart enough to handle "already Turkish"
     const translated = await translateText(textToTranslate);
     if (translated && translated !== textToTranslate) {
       if (result.description) {
