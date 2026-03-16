@@ -21,6 +21,7 @@ function toGroup(id: string, data: DocumentData): Group {
     order: data.order ?? 0,
     icon: data.icon ?? '📁',
     visible: data.visible ?? true,
+    parentId: data.parentId ?? null,
     createdAt: (data.createdAt as Timestamp)?.toDate() ?? new Date(),
   }
 }

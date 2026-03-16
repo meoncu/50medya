@@ -24,6 +24,7 @@ export interface Group {
   icon: string
   visible: boolean
   createdAt: Date
+  parentId?: string | null
 }
 
 export interface User {

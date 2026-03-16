@@ -23,11 +23,13 @@ import type { Group } from '../../types'
 
 function SortableGroup({
   group,
+  parentName,
   onEdit,
   onDelete,
   onToggle,
 }: {
   group: Group
+  parentName?: string
   onEdit: (g: Group) => void
   onDelete: (id: string) => void
   onToggle: (g: Group) => void
@@ -45,7 +47,12 @@ function SortableGroup({
         <GripVertical size={18} />
       </button>
       <span className="text-xl">{group.icon}</span>
-      <span className="flex-1 text-sm font-medium text-slate-800">{group.name}</span>
+      <div className="flex-1 flex flex-col">
+        <span className="text-sm font-medium text-slate-800">{group.name}</span>
+        {parentName && (
+          <span className="text-xs text-slate-400">Ana grup: {parentName}</span>
+        )}
+      </div>
       <div className="flex items-center gap-1">
         <button
           onClick={() => onToggle(group)}
@@ -77,6 +84,7 @@ export function AdminGroups() {
   const [editGroup, setEditGroup] = useState<Group | null>(null)
   const [name, setName] = useState('')
   const [icon, setIcon] = useState('📁')
+  const [parentId, setParentId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   const sensors = useSensors(
@@ -99,7 +107,7 @@ export function AdminGroups() {
     setSaving(true)
     try {
       if (editGroup) {
-        await updateGroup(editGroup.id, { name: name.trim(), icon })
+        await updateGroup(editGroup.id, { name: name.trim(), icon, parentId })
       } else {
         const slug = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
         await addGroup({
@@ -108,6 +116,7 @@ export function AdminGroups() {
           icon,
           order: groups.length,
           visible: true,
+          parentId,
           createdAt: new Date(),
         })
       }
@@ -115,6 +124,7 @@ export function AdminGroups() {
       setEditGroup(null)
       setName('')
       setIcon('📁')
+      setParentId(null)
     } finally {
       setSaving(false)
     }
@@ -124,6 +134,7 @@ export function AdminGroups() {
     setEditGroup(g)
     setName(g.name)
     setIcon(g.icon)
+    setParentId(g.parentId || null)
     setShowForm(true)
   }
 
@@ -155,7 +166,7 @@ export function AdminGroups() {
             </button>
           )}
           <button
-            onClick={() => { setShowForm(true); setEditGroup(null); setName(''); setIcon('📁') }}
+            onClick={() => { setShowForm(true); setEditGroup(null); setName(''); setIcon('📁'); setParentId(null) }}
             className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-xl hover:bg-primary-600 transition-colors"
           >
             <Plus size={16} />
@@ -185,6 +196,20 @@ export function AdminGroups() {
               onKeyDown={(e) => e.key === 'Enter' && handleSave()}
             />
           </div>
+          <div className="mb-3">
+            <select
+              value={parentId || ''}
+              onChange={(e) => setParentId(e.target.value || null)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-primary-400 bg-white"
+            >
+              <option value="">(Ana Grup - Üst grup yok)</option>
+              {groups
+                .filter(g => g.id !== editGroup?.id && !g.parentId) // Sadece ana grupları listele (1 seviye alt grup)
+                .map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+            </select>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={handleSave}
@@ -213,6 +238,7 @@ export function AdminGroups() {
               <SortableGroup
                 key={g.id}
                 group={g}
+                parentName={groups.find(p => p.id === g.parentId)?.name}
                 onEdit={startEdit}
                 onDelete={handleDelete}
                 onToggle={handleToggle}

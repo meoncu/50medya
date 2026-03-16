@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Download, Share2, ExternalLink, Copy, Check, Sparkles, RefreshCw, StickyNote, Save } from 'lucide-react'
+import { ArrowLeft, Download, Share2, ExternalLink, Copy, Check, Sparkles, RefreshCw, StickyNote, Save, Edit3 } from 'lucide-react'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import type { Post } from '../types'
-import { platformLabel, platformColor, timeAgo } from '../lib/utils'
+import { platformLabel, platformColor, timeAgo, cn } from '../lib/utils'
 import { useStore } from '../store'
 import { SummaryModal } from '../components/ui/SummaryModal'
 import { fetchLinkPreview } from '../services/linkPreview'
@@ -19,9 +19,18 @@ export function PostDetail() {
   const [syncing, setSyncing] = useState(false)
   const [summary, setSummary] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
+  
+  // Viewer Notes states
   const [noteText, setNoteText] = useState('')
   const [isEditingNote, setIsEditingNote] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
+  
+  // Content Editing states (Admin)
+  const [isEditingContent, setIsEditingContent] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [savingContent, setSavingContent] = useState(false)
+
   const groups = useStore((s) => s.groups)
   const user = useStore((s) => s.user)
 
@@ -46,9 +55,12 @@ export function PostDetail() {
       }
       setPost(postData)
       setNoteText(postData.viewerNotes || '')
+      setEditTitle(postData.title || '')
+      setEditDescription(postData.description || '')
 
       // Auto-sync if it's a generic placeholder
-      if (postData.platform === 'twitter' && postData.title === 'X (Twitter) Paylaşımı' && !syncing) {
+      if ((postData.platform === 'twitter' && postData.title === 'X (Twitter) Paylaşımı' && !syncing) ||
+          (postData.platform === 'instagram' && postData.title === 'Instagram Paylaşımı' && !syncing)) {
         handleRefreshMetadata(postData)
       }
     }
@@ -62,7 +74,7 @@ export function PostDetail() {
     setSyncing(true)
     try {
       const result = await fetchLinkPreview(`${currentPost.url}&t=${Date.now()}`)
-      if (result && result.title && result.title !== 'X (Twitter) Paylaşımı') {
+      if (result && result.title && result.title !== 'X (Twitter) Paylaşımı' && result.title !== 'Instagram Paylaşımı') {
         const updates = {
           title: result.title,
           description: result.description || '',
@@ -70,11 +82,32 @@ export function PostDetail() {
         }
         await updateDoc(doc(db, 'posts', currentPost.id), updates)
         setPost({ ...currentPost, ...updates })
+        setEditTitle(updates.title)
+        setEditDescription(updates.description)
       }
     } catch (err) {
       console.error('Metadata sync error:', err)
     } finally {
       setSyncing(false)
+    }
+  }
+
+  async function handleSaveContent() {
+    if (!post || !id) return
+    setSavingContent(true)
+    try {
+      const updates = {
+        title: editTitle,
+        description: editDescription
+      }
+      await updateDoc(doc(db, 'posts', id), updates)
+      setPost({ ...post, ...updates })
+      setIsEditingContent(false)
+    } catch (err) {
+      console.error('Error saving content:', err)
+      alert('İçerik güncellenemedi.')
+    } finally {
+      setSavingContent(false)
     }
   }
 
@@ -192,14 +225,25 @@ export function PostDetail() {
           Geri
         </Link>
         {isAdmin && (
-          <button
-            onClick={() => handleRefreshMetadata(post)}
-            disabled={syncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            Bilgileri Güncelle
-          </button>
+          <div className="flex gap-2">
+            {!isEditingContent && (
+              <button
+                onClick={() => setIsEditingContent(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <Edit3 size={14} />
+                Yazıyı Düzenle
+              </button>
+            )}
+            <button
+              onClick={() => handleRefreshMetadata(post)}
+              disabled={syncing}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+              Bilgileri Güncelle
+            </button>
+          </div>
         )}
       </div>
 
@@ -227,7 +271,7 @@ export function PostDetail() {
 
         <div className="p-4">
           <div className="flex flex-wrap gap-2 mb-3">
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${platformColor(post.platform)}`}>
+            <span className={cn("text-xs px-2 py-1 rounded-full font-medium", platformColor(post.platform))}>
               {platformLabel(post.platform)}
             </span>
             {group && (
@@ -237,11 +281,56 @@ export function PostDetail() {
             )}
           </div>
 
-          <h1 className="text-lg font-bold text-slate-800 mb-2">{post.title}</h1>
-          {post.description && (
-            <div className="bg-slate-50 rounded-xl p-3 mb-4">
-              <p className="text-sm text-slate-600 leading-relaxed font-normal whitespace-pre-wrap">{post.description}</p>
+          {isEditingContent ? (
+            <div className="space-y-4 mb-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Başlık</label>
+                <textarea
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full p-2 text-lg font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none resize-none"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Açıklama</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full p-2 text-sm text-slate-600 leading-relaxed bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none resize-none"
+                  rows={5}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setIsEditingContent(false)
+                    setEditTitle(post.title || '')
+                    setEditDescription(post.description || '')
+                  }}
+                  className="px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  onClick={handleSaveContent}
+                  disabled={savingContent}
+                  className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-700 transition-all shadow-md active:scale-95 disabled:opacity-50"
+                >
+                  {savingContent ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={16} />}
+                  Değişiklikleri Kaydet
+                </button>
+              </div>
             </div>
+          ) : (
+            <>
+              <h1 className="text-lg font-bold text-slate-800 mb-2">{post.title}</h1>
+              {post.description && (
+                <div className="bg-slate-50 rounded-xl p-3 mb-4">
+                  <p className="text-sm text-slate-600 leading-relaxed font-normal whitespace-pre-wrap">{post.description}</p>
+                </div>
+              )}
+            </>
           )}
 
           {/* Viewer Notes Section */}
@@ -326,7 +415,7 @@ export function PostDetail() {
               Paylaş
             </button>
 
-            {(post.platform === 'youtube' || post.platform === 'twitter') && (
+            {(post.platform === 'youtube' || post.platform === 'twitter' || post.platform === 'instagram') && (
               <>
                 <button
                   onClick={handleSummarize}

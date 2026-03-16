@@ -4,6 +4,27 @@ const API_KEY = process.env.VITE_GEMINI_API_KEY ||
   process.env.GEMINI_API_KEY ||
   'AIzaSyDBCRjZYrpFHrRqlPW8ju4jgvEI7FxJiEI';
 
+function decodeHtml(html: string): string {
+  if (!html) return '';
+  return html
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x131;/g, "ı")
+    .replace(/&#x130;/g, "İ")
+    .replace(/&#x15F;/g, "ş")
+    .replace(/&#x15E;/g, "Ş")
+    .replace(/&#x11F;/g, "ğ")
+    .replace(/&#x11E;/g, "Ğ")
+    .replace(/&#x131;/g, "ı")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 async function translateText(text: string): Promise<string> {
   if (!text || text.length < 10) return text;
 
@@ -54,11 +75,12 @@ export default async function handler(req: Request) {
   // Normalize URL
   let targetUrl = originalUrl.trim()
   const isTwitter = targetUrl.includes('x.com') || targetUrl.includes('twitter.com')
+  const isInstagram = targetUrl.includes('instagram.com')
 
   // Helper to proxy images
   const proxyImage = (url: string) => {
     if (!url) return ''
-    if (url.includes('twimg.com') || url.includes('x.com') || url.includes('twitter.com') || url.includes('fxtwitter.com')) {
+    if (url.includes('twimg.com') || url.includes('x.com') || url.includes('twitter.com') || url.includes('fxtwitter.com') || url.includes('cdninstagram.com') || url.includes('instagram.com')) {
       return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&default=identicon`
     }
     return url
@@ -68,11 +90,13 @@ export default async function handler(req: Request) {
     title: '',
     description: '',
     thumbnail: '',
-    platform: isTwitter ? 'twitter' : 'other',
+    platform: isTwitter ? 'twitter' : (isInstagram ? 'instagram' : 'other'),
     url: originalUrl
   }
 
   // --- 1. DATA FETCHING ---
+  
+  // A. Twitter Handling
   if (isTwitter) {
     const statusId = targetUrl.match(/status\/(\d+)/)?.[1]
     if (statusId) {
@@ -82,7 +106,13 @@ export default async function handler(req: Request) {
       ]
       for (const p of proxies) {
         try {
-          const res = await fetch(p, { headers: { 'Accept': 'application/json' }, timeout: 4000 })
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 4000)
+          const res = await fetch(p, { 
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal 
+          })
+          clearTimeout(timeoutId)
           if (res.ok) {
             const data = await res.json()
             const tweet = data.tweet || data
@@ -98,7 +128,38 @@ export default async function handler(req: Request) {
     }
   }
 
-  // Scraping fallback if needed
+  // B. Instagram Handling
+  if (isInstagram && !result.description) {
+    // Try to use ddinstagram for metadata scraping
+    const ddUrl = targetUrl.replace('instagram.com', 'ddinstagram.com')
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+      const res = await fetch(ddUrl, { 
+        headers: { 'User-Agent': 'facebookexternalhit/1.1 Twitterbot/1.0' },
+        signal: controller.signal
+      })
+      clearTimeout(timeoutId)
+      if (res.ok) {
+        const html = await res.text()
+        const getMeta = (p: string) => {
+          const r = new RegExp(`<meta[^>]+(?:property|name)=["'](?:og:|twitter:)?${p}["'][^>]+content=["']([^"']+)["']`, 'i')
+          return html.match(r)?.[1] || ''
+        }
+        result.description = getMeta('description') || ''
+        result.title = getMeta('title') || ''
+        result.thumbnail = proxyImage(getMeta('image') || getMeta('image:src') || '')
+        
+        // Sometimes ddinstagram gives better titles in og:title
+        if (!result.title || result.title.includes('Instagram')) {
+           const ogTitle = getMeta('og:title')
+           if (ogTitle && !ogTitle.includes('Instagram')) result.title = ogTitle
+        }
+      }
+    } catch (e) { }
+  }
+
+  // C. General Scraping fallback if needed
   if (!result.description && !result.title) {
     try {
       const res = await fetch(targetUrl, { headers: { 'User-Agent': 'facebookexternalhit/1.1 Twitterbot/1.0' } })
@@ -116,7 +177,11 @@ export default async function handler(req: Request) {
   }
 
   // Final fallback text
-  if (!result.title) result.title = isTwitter ? 'X (Twitter) Paylaşımı' : originalUrl
+  if (!result.title) {
+    if (isTwitter) result.title = 'X (Twitter) Paylaşımı'
+    else if (isInstagram) result.title = 'Instagram Paylaşımı'
+    else result.title = originalUrl
+  }
 
   // --- 2. AI TRANSLATION ---
   // Translate if it's more than just a link and we have content
@@ -135,5 +200,9 @@ export default async function handler(req: Request) {
     }
   }
 
-  return new Response(JSON.stringify(result), { headers: corsHeaders })
+  return new Response(JSON.stringify({
+    ...result,
+    title: decodeHtml(result.title),
+    description: decodeHtml(result.description)
+  }), { headers: corsHeaders })
 }

@@ -1,5 +1,5 @@
-import { NavLink } from 'react-router-dom'
-import { Home, Grid3X3, Settings } from 'lucide-react'
+import { Home, Grid3X3, Settings, Plus } from 'lucide-react'
+import { Link, NavLink } from 'react-router-dom'
 import { useStore } from '../../store'
 import { cn } from '../../lib/utils'
 
@@ -35,6 +35,16 @@ export function BottomNav() {
           <Grid3X3 size={22} />
           <span className="text-xs font-medium">Gruplar</span>
         </NavLink>
+
+        {user?.isAdmin && (
+          <Link
+            to="/admin/posts"
+            state={{ addPost: true }}
+            className="flex flex-col items-center justify-center -mt-8 w-14 h-14 bg-primary-500 text-white rounded-full shadow-lg border-4 border-slate-50 transition-transform active:scale-95 mb-1"
+          >
+            <Plus size={28} strokeWidth={3} />
+          </Link>
+        )}
 
         {user?.isAdmin && (
           <NavLink

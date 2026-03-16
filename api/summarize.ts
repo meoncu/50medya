@@ -10,7 +10,7 @@ export default async function handler(req: Request) {
     if (!url) return new Response('URL required', { status: 400 })
 
     try {
-        const prompt = `Lütfen şu YouTube videosunu detaylıca analiz et ve Türkçe bir özet oluştur. Video içeriğindeki önemli noktaları maddeler halinde belirt: ${url}`
+        const prompt = `Lütfen şu sosyal medya paylaşımını (YouTube, Twitter veya Instagram) detaylıca analiz et ve Türkçe bir özet oluştur. Eğer video ise içeriğini, yazı ise ana fikrini maddeler halinde belirt: ${url}`
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',

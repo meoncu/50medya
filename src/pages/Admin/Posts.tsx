@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Edit2, Check, X, Eye, EyeOff } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import { Plus, Trash2, Edit2, Check, X, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { getAllPosts, addPost, updatePost, deletePost } from '../../services/posts'
 import { fetchLinkPreview } from '../../services/linkPreview'
 import { useStore } from '../../store'
@@ -15,6 +16,7 @@ export function AdminPosts() {
   const [selectedGroupId, setSelectedGroupId] = useState<string>('')
   const [fetching, setFetching] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [syncingId, setSyncingId] = useState<string | null>(null)
   const groups = useStore((s) => s.groups)
   const user = useStore((s) => s.user)
 
@@ -25,7 +27,14 @@ export function AdminPosts() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  const location = useLocation()
+
+  useEffect(() => { 
+    load() 
+    if (location.state?.addPost) {
+      setShowForm(true)
+    }
+  }, [location.state])
 
   async function handleFetchPreview() {
     if (!url.trim()) return
@@ -39,16 +48,21 @@ export function AdminPosts() {
   }
 
   async function handleSave() {
-    if (!preview || !user) return
+    if (!url.trim() || !user) return
     setSaving(true)
     try {
+      let finalPreview = preview
+      if (!finalPreview) {
+        finalPreview = await fetchLinkPreview(url.trim())
+      }
+
       await addPost({
-        url: preview.url || url,
-        platform: preview.platform || 'other',
-        title: preview.title || '',
-        description: preview.description || '',
-        thumbnail: preview.thumbnail || '',
-        mediaType: preview.mediaType || 'unknown',
+        url: finalPreview?.url || url.trim(),
+        platform: finalPreview?.platform || 'other',
+        title: finalPreview?.title || '',
+        description: finalPreview?.description || '',
+        thumbnail: finalPreview?.thumbnail || '',
+        mediaType: finalPreview?.mediaType || 'unknown',
         groupId: selectedGroupId || null,
         createdAt: new Date(),
         createdBy: user.uid,
@@ -59,6 +73,9 @@ export function AdminPosts() {
       setSelectedGroupId('')
       setShowForm(false)
       await load()
+    } catch (err) {
+      console.error('Save error:', err)
+      alert('Kaydedilirken bir hata oluştu.')
     } finally {
       setSaving(false)
     }
@@ -73,6 +90,30 @@ export function AdminPosts() {
     if (!confirm('Bu postu silmek istediğinize emin misiniz?')) return
     await deletePost(id)
     await load()
+  }
+
+  async function handleSyncMetadata(post: Post) {
+    if (syncingId === post.id) return
+    setSyncingId(post.id)
+    try {
+      const result = await fetchLinkPreview(`${post.url}&t=${Date.now()}`)
+      if (result) {
+        const updates = {
+          title: result.title || post.title,
+          description: result.description || post.description,
+          thumbnail: result.thumbnail || post.thumbnail,
+          mediaType: result.mediaType || post.mediaType,
+          platform: result.platform || post.platform
+        }
+        await updatePost(post.id, updates)
+        await load()
+      }
+    } catch (err) {
+      console.error('Manual sync error:', err)
+      alert('Bilgiler güncellenemedi.')
+    } finally {
+      setSyncingId(null)
+    }
   }
 
   return (
@@ -145,14 +186,20 @@ export function AdminPosts() {
               className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-primary-400"
             >
               <option value="">Grup seçin (opsiyonel)</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>{g.icon} {g.name}</option>
-              ))}
+              {groups.map((g) => {
+                const parent = g.parentId ? groups.find(p => p.id === g.parentId) : null
+                const prefix = parent ? `${parent.name} > ` : ''
+                return (
+                  <option key={g.id} value={g.id}>
+                    {prefix}{g.icon} {g.name}
+                  </option>
+                )
+              })}
             </select>
 
             <button
               onClick={handleSave}
-              disabled={!preview || saving}
+              disabled={!url.trim() || saving || fetching}
               className="flex items-center gap-1.5 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-60"
             >
               <Check size={15} />
@@ -196,6 +243,14 @@ export function AdminPosts() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => handleSyncMetadata(post)}
+                    disabled={syncingId === post.id}
+                    className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50"
+                    title="Bilgileri Güncelle"
+                  >
+                    <RefreshCw size={16} className={syncingId === post.id ? 'animate-spin' : ''} />
+                  </button>
                   <button
                     onClick={() => handleTogglePublish(post)}
                     className={`p-1.5 rounded-lg transition-colors ${post.published ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'}`}
