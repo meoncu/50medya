@@ -6,12 +6,14 @@ function detectPlatform(url: string): Platform {
   if (url.includes('twitter.com') || url.includes('x.com')) return 'twitter'
   if (url.includes('tiktok.com')) return 'tiktok'
   if (url.includes('facebook.com') || url.includes('fb.com')) return 'facebook'
+  if (url.includes('pinterest.com') || url.includes('pin.it')) return 'pinterest'
   return 'other'
 }
 
 function detectMediaType(platform: Platform, url: string): MediaType {
   if (platform === 'youtube') return 'video'
   if (platform === 'tiktok') return 'video'
+  if (platform === 'pinterest') return 'image'
   if (url.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i)) return 'image'
   if (url.match(/\.(mp4|mov|avi|webm)(\?|$)/i)) return 'video'
   if (platform === 'instagram') return 'video'

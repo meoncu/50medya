@@ -73,12 +73,13 @@ export default async function handler(req: Request) {
   let targetUrl = originalUrl.trim()
   const isTwitter = targetUrl.includes('x.com') || targetUrl.includes('twitter.com')
   const isInstagram = targetUrl.includes('instagram.com')
+  const isPinterest = targetUrl.includes('pinterest.com') || targetUrl.includes('pin.it')
 
   const proxyImage = (url: string) => {
     if (!url) return ''
     // Use weserv.nl to bypass referer/CORS blocks. 
     // It's very effective for Twitter and Instagram CDN links.
-    if (url.includes('twimg.com') || url.includes('cdninstagram.com') || url.includes('fbcdn.net') || url.includes('instagram.com')) {
+    if (url.includes('twimg.com') || url.includes('cdninstagram.com') || url.includes('fbcdn.net') || url.includes('instagram.com') || url.includes('pinimg.com')) {
       return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&default=identicon`
     }
     return url
@@ -88,8 +89,20 @@ export default async function handler(req: Request) {
     title: '',
     description: '',
     thumbnail: '',
-    platform: isTwitter ? 'twitter' : (isInstagram ? 'instagram' : 'other'),
+    platform: isTwitter ? 'twitter' : (isInstagram ? 'instagram' : (isPinterest ? 'pinterest' : 'other')),
     url: originalUrl
+  }
+
+  const getRobustMeta = (html: string, p: string) => {
+    const regexes = [
+      new RegExp(`<meta[^>]+(?:property|name)=["'](?:og:|twitter:)?${p}["'][^>]+content=["']([^"']+)["']`, 'i'),
+      new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:|twitter:)?${p}["']`, 'i')
+    ]
+    for (const r of regexes) {
+      const m = html.match(r)
+      if (m?.[1]) return m[1]
+    }
+    return ''
   }
 
   // --- 1. DATA FETCHING ---
@@ -104,7 +117,7 @@ export default async function handler(req: Request) {
       ]
       for (const p of proxies) {
         try {
-          const res = await fetch(p, { headers: { 'Accept': 'application/json' }, timeout: 4000 })
+          const res = await fetch(p, { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(4000) })
           if (res.ok) {
             const data = await res.json()
             const tweet = data.tweet || data
@@ -122,62 +135,61 @@ export default async function handler(req: Request) {
 
   // B. Instagram Handling
   if (isInstagram) {
-    // 1. Try to get thumbnail via direct media endpoint (works for most public posts)
-    const idMatch = targetUrl.match(/\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/)
-    if (idMatch) {
-      const shortcode = idMatch[1]
-      result.thumbnail = `https://images.weserv.nl/?url=${encodeURIComponent(`https://www.instagram.com/p/${shortcode}/media/?size=l`)}&default=identicon`
-    }
-
-    // 2. Scraping for text
+    // 1. Scraping for text and image
     const scrapUrls = [
       targetUrl.replace('instagram.com', 'ddinstagram.com'),
       targetUrl.includes('?') ? targetUrl.split('?')[0] + 'embed/captioned/' : (targetUrl.endsWith('/') ? targetUrl + 'embed/captioned/' : targetUrl + '/embed/captioned/')
     ]
 
     for (const urlToScrap of scrapUrls) {
-      if (result.description && result.title && result.thumbnail) break;
+      if (result.description && result.title && result.thumbnail && !result.thumbnail.includes('identicon')) break;
       try {
         const res = await fetch(urlToScrap, { 
           headers: { 'User-Agent': 'facebookexternalhit/1.1' },
-          timeout: 4000
+          signal: AbortSignal.timeout(4000)
         })
         if (res.ok) {
           const html = await res.text()
-          const getMeta = (p: string) => {
-            const r = new RegExp(`<meta[^>]+(?:property|name)=["'](?:og:|twitter:)?${p}["'][^>]+content=["']([^"']+)["']`, 'i')
-            return html.match(r)?.[1] || ''
-          }
           
-          if (!result.description) result.description = getMeta('description')
+          if (!result.description) result.description = getRobustMeta(html, 'description')
           if (!result.title || result.title.includes('Instagram')) {
-             const ogTitle = getMeta('og:title') || getMeta('title')
+             const ogTitle = getRobustMeta(html, 'title') || getRobustMeta(html, 'og:title')
              if (ogTitle && !ogTitle.includes('Instagram')) result.title = ogTitle
           }
-          // If we don't have a thumbnail yet or native media failed, try og:image from ddinstagram
           if (!result.thumbnail || result.thumbnail.includes('identicon')) {
-             const ogImage = getMeta('image') || getMeta('image:src')
+             const ogImage = getRobustMeta(html, 'image') || getRobustMeta(html, 'image:src') || getRobustMeta(html, 'thumbnail') || getRobustMeta(html, 'og:image')
              if (ogImage) result.thumbnail = proxyImage(ogImage)
           }
         }
       } catch (e) { }
     }
+
+    // fallback: if we still don't have a thumbnail, try the media endpoint
+    if (!result.thumbnail || result.thumbnail.includes('identicon')) {
+      const idMatch = targetUrl.match(/\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/)
+      if (idMatch) {
+        const shortcode = idMatch[1]
+        result.thumbnail = proxyImage(`https://www.instagram.com/p/${shortcode}/media/?size=l`)
+      }
+    }
   }
 
-  // C. General Scraping fallback
-  if (!result.description && !result.title) {
+  // C. General Scraping fallback (inclusive for Pinterest and others)
+  if (!result.description && !result.title && !result.thumbnail) {
     try {
-      const res = await fetch(targetUrl, { headers: { 'User-Agent': 'facebookexternalhit/1.1' } })
+      const fetchUrl = isPinterest && result.url.includes('pin.it') ? result.url : targetUrl;
+      const res = await fetch(fetchUrl, { headers: { 'User-Agent': 'facebookexternalhit/1.1' }, signal: AbortSignal.timeout(4000) })
       if (res.ok) {
         const html = await res.text()
-        const getMeta = (p: string) => {
-          const r = new RegExp(`<meta[^>]+(?:property|name)=["'](?:og:|twitter:)?${p}["'][^>]+content=["']([^"']+)["']`, 'i')
-          return html.match(r)?.[1] || ''
-        }
-        result.title = getMeta('title') || html.match(/<title>([^<]+)<\/title>/i)?.[1] || ''
-        result.description = getMeta('description') || ''
+        result.title = getRobustMeta(html, 'title') || getRobustMeta(html, 'og:title') || html.match(/<title>([^<]+)<\/title>/i)?.[1] || ''
+        result.description = getRobustMeta(html, 'description') || getRobustMeta(html, 'og:description') || ''
         if (!result.thumbnail) {
-          result.thumbnail = proxyImage(getMeta('image') || getMeta('image:src') || getMeta('twitter:image') || '')
+          let fallbackImage = getRobustMeta(html, 'image') || getRobustMeta(html, 'image:src') || getRobustMeta(html, 'thumbnail') || getRobustMeta(html, 'og:image') || ''
+          if (!fallbackImage) {
+            const extraSearch = html.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/i);
+            if (extraSearch) fallbackImage = extraSearch[1];
+          }
+          if (fallbackImage) result.thumbnail = proxyImage(fallbackImage);
         }
       }
     } catch (e) { }
@@ -187,6 +199,7 @@ export default async function handler(req: Request) {
   if (!result.title) {
     if (isTwitter) result.title = 'X (Twitter) Paylaşımı'
     else if (isInstagram) result.title = 'Instagram Paylaşımı'
+    else if (isPinterest) result.title = 'Pinterest Paylaşımı'
     else result.title = originalUrl
   }
 

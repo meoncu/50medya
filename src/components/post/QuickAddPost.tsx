@@ -4,7 +4,7 @@ import { addPost } from '../../services/posts'
 import { fetchLinkPreview } from '../../services/linkPreview'
 import { useStore } from '../../store'
 import type { Post } from '../../types'
-import { cn } from '../../lib/utils'
+import { cn, getHierarchicalGroups } from '../../lib/utils'
 
 export function QuickAddPost() {
   const [url, setUrl] = useState('')
@@ -160,15 +160,11 @@ export function QuickAddPost() {
                 className="flex-1 px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-primary-400 outline-none appearance-none cursor-pointer"
               >
                 <option value="">Grup (Kategori) Seçin</option>
-                {groups.map((g) => {
-                  const parent = g.parentId ? groups.find(p => p.id === g.parentId) : null
-                  const prefix = parent ? `${parent.name} > ` : ''
-                  return (
-                    <option key={g.id} value={g.id}>
-                      {prefix}{g.icon} {g.name}
-                    </option>
-                  )
-                })}
+                {getHierarchicalGroups(groups).map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.displayLabel}
+                  </option>
+                ))}
               </select>
 
               <button

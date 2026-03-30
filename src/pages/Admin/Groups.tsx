@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -16,61 +16,98 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Plus, Trash2, Edit2, Check, X, Eye, EyeOff } from 'lucide-react'
+import { GripVertical, Plus, Trash2, Edit2, Check, X, Eye, EyeOff, FolderPlus, ChevronRight, ChevronDown } from 'lucide-react'
 import { addGroup, updateGroup, deleteGroup, seedDefaultGroups } from '../../services/groups'
 import { useStore } from '../../store'
+import { cn } from '../../lib/utils'
 import type { Group } from '../../types'
 
 function SortableGroup({
   group,
-  parentName,
+  isChild,
+  hasChildren,
+  isExpanded,
   onEdit,
   onDelete,
   onToggle,
+  onAddSub,
+  onExpandToggle,
 }: {
   group: Group
-  parentName?: string
+  isChild?: boolean
+  hasChildren?: boolean
+  isExpanded?: boolean
   onEdit: (g: Group) => void
   onDelete: (id: string) => void
   onToggle: (g: Group) => void
+  onAddSub: (parentId: string) => void
+  onExpandToggle?: (id: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: group.id })
-  const style = { transform: CSS.Transform.toString(transform), transition }
+  const style = { 
+    transform: CSS.Transform.toString(transform), 
+    transition,
+    marginLeft: isChild ? '2.5rem' : '0'
+  }
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="bg-white rounded-2xl border border-slate-200 p-3 flex items-center gap-3"
+      className={`bg-white rounded-2xl border ${isChild ? 'border-dashed border-slate-200 bg-slate-50/50' : 'border-slate-200'} p-3 flex items-center gap-3 group/row transition-all hover:border-primary-200 shadow-sm`}
     >
       <button {...attributes} {...listeners} className="cursor-grab text-slate-300 hover:text-slate-500 touch-none">
         <GripVertical size={18} />
       </button>
+      
+      {!isChild && hasChildren && (
+        <button 
+          onClick={() => onExpandToggle?.(group.id)}
+          className={cn("p-1 rounded-lg hover:bg-slate-100 transition-transform duration-200", isExpanded && "rotate-180")}
+        >
+          <ChevronDown size={14} className="text-slate-400" />
+        </button>
+      )}
+
+      {isChild && <ChevronRight size={14} className="text-slate-300 ml-1" />}
+      
       <span className="text-xl">{group.icon}</span>
       <div className="flex-1 flex flex-col">
-        <span className="text-sm font-medium text-slate-800">{group.name}</span>
-        {parentName && (
-          <span className="text-xs text-slate-400">Ana grup: {parentName}</span>
-        )}
+        <span className={`text-sm font-bold ${isChild ? 'text-slate-600' : 'text-slate-800'}`}>
+          {group.name}
+        </span>
       </div>
-      <div className="flex items-center gap-1">
+
+      <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+        {!isChild && (
+          <button
+            onClick={() => onAddSub(group.id)}
+            className="p-1.5 text-primary-500 hover:bg-primary-50 rounded-lg transition-colors"
+            title="Alt Grup Ekle"
+          >
+            <FolderPlus size={16} />
+          </button>
+        )}
         <button
           onClick={() => onToggle(group)}
           className={`p-1.5 rounded-lg transition-colors ${group.visible ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'}`}
+          title={group.visible ? 'Gizle' : 'Göster'}
         >
-          {group.visible ? <Eye size={15} /> : <EyeOff size={15} />}
+          {group.visible ? <Eye size={16} /> : <EyeOff size={16} />}
         </button>
         <button
           onClick={() => onEdit(group)}
           className="p-1.5 text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+          title="Düzenle"
         >
-          <Edit2 size={15} />
+          <Edit2 size={16} />
         </button>
         <button
           onClick={() => onDelete(group.id)}
-          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          className="p-1.5 text-red-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+          title="Sil"
         >
-          <Trash2 size={15} />
+          <Trash2 size={16} />
         </button>
       </div>
     </div>
@@ -86,6 +123,57 @@ export function AdminGroups() {
   const [icon, setIcon] = useState('📁')
   const [parentId, setParentId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({})
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  // Hierarchical groups for rendering with collapse/expand logic
+  const sortedHierarchicalGroups = useMemo(() => {
+    const roots = groups.filter(g => !g.parentId)
+    const children = groups.filter(g => g.parentId)
+    
+    let result: { group: Group, isChild: boolean, hasChildren: boolean, isExpanded: boolean }[] = []
+    
+    roots.forEach(root => {
+      const subGroups = children.filter(c => c.parentId === root.id)
+      const isExpanded = !!expandedIds[root.id]
+      
+      result.push({ 
+        group: root, 
+        isChild: false, 
+        hasChildren: subGroups.length > 0,
+        isExpanded
+      })
+
+      if (isExpanded) {
+        subGroups.forEach(sub => {
+          result.push({ 
+            group: sub, 
+            isChild: true, 
+            hasChildren: false,
+            isExpanded: false
+          })
+        })
+      }
+    })
+    
+    // Add orphaned or hidden groups
+    const processedIds = new Set(result.map(r => r.group.id))
+    groups.filter(g => !processedIds.has(g.id)).forEach(g => {
+       const isRoot = !g.parentId
+       const subCount = groups.filter(c => c.parentId === g.id).length
+       result.push({ 
+         group: g, 
+         isChild: !isRoot, 
+         hasChildren: isRoot && subCount > 0,
+         isExpanded: isRoot && !!expandedIds[g.id]
+       })
+    })
+
+    return result
+  }, [groups, expandedIds])
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -95,11 +183,14 @@ export function AdminGroups() {
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const oldIndex = groups.findIndex((g) => g.id === active.id)
-    const newIndex = groups.findIndex((g) => g.id === over.id)
-    const newOrder = arrayMove(groups, oldIndex, newIndex)
-    setGroups(newOrder)
-    await Promise.all(newOrder.map((g, i) => updateGroup(g.id, { order: i })))
+    
+    // Simplistic DND order - based on the visual list order when dragging
+    const oldIndex = sortedHierarchicalGroups.findIndex((g) => g.group.id === active.id)
+    const newIndex = sortedHierarchicalGroups.findIndex((g) => g.group.id === over.id)
+    
+    const reordered = arrayMove(groups, oldIndex, newIndex)
+    setGroups(reordered)
+    await Promise.all(reordered.map((g, i) => updateGroup(g.id, { order: i })))
   }
 
   async function handleSave() {
@@ -120,14 +211,18 @@ export function AdminGroups() {
           createdAt: new Date(),
         })
       }
-      setShowForm(false)
-      setEditGroup(null)
-      setName('')
-      setIcon('📁')
-      setParentId(null)
+      resetForm()
     } finally {
       setSaving(false)
     }
+  }
+
+  function resetForm() {
+    setShowForm(false)
+    setEditGroup(null)
+    setName('')
+    setIcon('📁')
+    setParentId(null)
   }
 
   function startEdit(g: Group) {
@@ -136,9 +231,25 @@ export function AdminGroups() {
     setIcon(g.icon)
     setParentId(g.parentId || null)
     setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function startAddSub(pid: string) {
+    setEditGroup(null)
+    setName('')
+    setIcon('📁')
+    setParentId(pid)
+    setShowForm(true)
+    setExpandedIds(prev => ({ ...prev, [pid]: true }))
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   async function handleDelete(id: string) {
+    const hasChildren = groups.some(g => g.parentId === id)
+    if (hasChildren) {
+       alert('Bu grubun alt grupları var. Önce onları silmelisiniz.')
+       return
+    }
     if (!confirm('Bu grubu silmek istediğinize emin misiniz?')) return
     await deleteGroup(id)
   }
@@ -162,12 +273,12 @@ export function AdminGroups() {
               onClick={handleSeed}
               className="px-3 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50"
             >
-              Varsayılanları Ekle
+              Varsayılanlar
             </button>
           )}
           <button
             onClick={() => { setShowForm(true); setEditGroup(null); setName(''); setIcon('📁'); setParentId(null) }}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-xl hover:bg-primary-600 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-bold rounded-xl hover:bg-primary-600 transition-colors shadow-sm"
           >
             <Plus size={16} />
             Yeni Grup
@@ -176,72 +287,85 @@ export function AdminGroups() {
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-sm">
-          <h2 className="font-semibold text-slate-700 mb-3">
-            {editGroup ? 'Grubu Düzenle' : 'Yeni Grup'}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-6 shadow-md ring-2 ring-primary-500/10 scale-in-center">
+          <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+             {editGroup ? <Edit2 size={18} className="text-primary-500" /> : <Plus size={18} className="text-primary-500" />}
+             {editGroup ? 'Grubu Düzenle' : 'Yeni Grup'}
           </h2>
-          <div className="flex gap-2 mb-3">
-            <input
-              value={icon}
-              onChange={(e) => setIcon(e.target.value)}
-              className="w-14 text-center text-xl px-2 py-2 border border-slate-200 rounded-xl focus:outline-none"
-              placeholder="📁"
-              maxLength={2}
-            />
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Grup adı"
-              className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-primary-400"
-              onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-            />
+          
+          <div className="grid grid-cols-4 gap-4 mb-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">İkon</label>
+              <input
+                value={icon}
+                onChange={(e) => setIcon(e.target.value)}
+                className="w-full text-center text-2xl px-2 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-400 transition-all"
+                placeholder="📁"
+                maxLength={2}
+              />
+            </div>
+            <div className="col-span-3 flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Grup Adı</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Örn: Namaz..."
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-400 transition-all"
+                onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+              />
+            </div>
           </div>
-          <div className="mb-3">
+
+          <div className="mb-5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1 block mb-1">Üst Grup</label>
             <select
               value={parentId || ''}
               onChange={(e) => setParentId(e.target.value || null)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-primary-400 bg-white"
+              className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all cursor-pointer"
             >
               <option value="">(Ana Grup - Üst grup yok)</option>
               {groups
-                .filter(g => g.id !== editGroup?.id && !g.parentId) // Sadece ana grupları listele (1 seviye alt grup)
+                .filter(g => g.id !== editGroup?.id && !g.parentId) 
                 .map(g => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
+                  <option key={g.id} value={g.id}>{g.icon} {g.name}</option>
                 ))}
             </select>
           </div>
+
           <div className="flex gap-2">
             <button
               onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-1.5 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-xl hover:bg-primary-600 disabled:opacity-60"
+              disabled={saving || !name.trim()}
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-700 disabled:opacity-50 shadow-sm transition-all"
             >
-              <Check size={15} />
-              {saving ? 'Kaydediliyor...' : 'Kaydet'}
+              {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Check size={18} />}
+              {editGroup ? 'Güncelle' : 'Kaydet'}
             </button>
             <button
-              onClick={() => { setShowForm(false); setEditGroup(null) }}
-              className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl"
+              onClick={resetForm}
+              className="px-6 py-2.5 text-slate-500 font-bold text-sm hover:bg-slate-100 rounded-xl"
             >
-              <X size={18} />
+              Vazgeç
             </button>
           </div>
         </div>
       )}
 
-      <p className="text-xs text-slate-400 mb-3">Sıralamak için sürükleyin</p>
-
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={groups.map((g) => g.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-2">
-            {groups.map((g) => (
+        <SortableContext items={sortedHierarchicalGroups.map(r => r.group.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-2 pb-20">
+            {sortedHierarchicalGroups.map((row) => (
               <SortableGroup
-                key={g.id}
-                group={g}
-                parentName={groups.find(p => p.id === g.parentId)?.name}
+                key={row.group.id}
+                group={row.group}
+                isChild={row.isChild}
+                hasChildren={row.hasChildren}
+                isExpanded={row.isExpanded}
                 onEdit={startEdit}
                 onDelete={handleDelete}
                 onToggle={handleToggle}
+                onAddSub={startAddSub}
+                onExpandToggle={toggleExpand}
               />
             ))}
           </div>

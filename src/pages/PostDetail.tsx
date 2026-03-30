@@ -4,7 +4,7 @@ import { ArrowLeft, Download, Share2, ExternalLink, Copy, Check, Sparkles, Refre
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import type { Post } from '../types'
-import { platformLabel, platformColor, timeAgo, cn } from '../lib/utils'
+import { platformLabel, platformColor, timeAgo, cn, getHierarchicalGroups } from '../lib/utils'
 import { useStore } from '../store'
 import { SummaryModal } from '../components/ui/SummaryModal'
 import { fetchLinkPreview } from '../services/linkPreview'
@@ -29,6 +29,7 @@ export function PostDetail() {
   const [isEditingContent, setIsEditingContent] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('')
   const [savingContent, setSavingContent] = useState(false)
 
   const groups = useStore((s) => s.groups)
@@ -57,6 +58,7 @@ export function PostDetail() {
       setNoteText(postData.viewerNotes || '')
       setEditTitle(postData.title || '')
       setEditDescription(postData.description || '')
+      setSelectedGroupId(postData.groupId || '')
 
       // Auto-sync if it's a generic placeholder
       if ((postData.platform === 'twitter' && postData.title === 'X (Twitter) Paylaşımı' && !syncing) ||
@@ -98,7 +100,8 @@ export function PostDetail() {
     try {
       const updates = {
         title: editTitle,
-        description: editDescription
+        description: editDescription,
+        groupId: selectedGroupId || null
       }
       await updateDoc(doc(db, 'posts', id), updates)
       setPost({ ...post, ...updates })
@@ -300,6 +303,21 @@ export function PostDetail() {
                   className="w-full p-2 text-sm text-slate-600 leading-relaxed bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none resize-none"
                   rows={5}
                 />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Grup (Kategori)</label>
+                <select
+                  value={selectedGroupId}
+                  onChange={(e) => setSelectedGroupId(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+                >
+                  <option value="">Grup (Kategori) Seçin</option>
+                  {getHierarchicalGroups(groups).map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.displayLabel}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex justify-end gap-2">
                 <button

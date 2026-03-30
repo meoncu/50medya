@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import type { Group } from '../types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -39,4 +40,21 @@ export function platformColor(platform: string): string {
     other: 'bg-gray-100 text-gray-700',
   }
   return map[platform] ?? 'bg-gray-100 text-gray-700'
+}
+
+export function getHierarchicalGroups(groups: Group[]) {
+  const roots = groups.filter(g => !g.parentId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+  const children = groups.filter(g => g.parentId)
+  
+  const result: (Group & { displayLabel: string })[] = []
+  
+  roots.forEach(root => {
+    result.push({ ...root, displayLabel: `${root.icon} ${root.name}` })
+    const subGroups = children.filter(c => c.parentId === root.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    subGroups.forEach(sub => {
+      result.push({ ...sub, displayLabel: `↳ ${sub.icon} ${sub.name}` })
+    })
+  })
+  
+  return result
 }

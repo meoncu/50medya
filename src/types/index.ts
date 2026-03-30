@@ -1,4 +1,4 @@
-export type Platform = 'youtube' | 'instagram' | 'twitter' | 'tiktok' | 'facebook' | 'other'
+export type Platform = 'youtube' | 'instagram' | 'twitter' | 'tiktok' | 'facebook' | 'pinterest' | 'other'
 export type MediaType = 'image' | 'video' | 'unknown'
 
 export interface Post {
