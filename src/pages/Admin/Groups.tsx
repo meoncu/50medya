@@ -286,6 +286,7 @@ export function AdminGroups() {
     <div className="p-4">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-slate-800">Grup Yönetimi</h1>
+      </div>
       <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
         <div className="relative flex-1 group w-full">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary-500 transition-colors" />

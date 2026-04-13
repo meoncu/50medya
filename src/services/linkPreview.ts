@@ -14,8 +14,9 @@ function detectMediaType(platform: Platform, url: string): MediaType {
   if (platform === 'youtube') return 'video'
   if (platform === 'tiktok') return 'video'
   if (platform === 'pinterest') return 'image'
-  if (url.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i)) return 'image'
-  if (url.match(/\.(mp4|mov|avi|webm)(\?|$)/i)) return 'video'
+  if (url.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i)) return 'image'
+  if (url.match(/\.(mp4|mov|avi|webm|m4v|m3u8)(\?|$)/i)) return 'video'
+  // Instagram, Twitter/X often contain both, default to video as safest for shared links but keep flexible
   if (platform === 'instagram') return 'video'
   if (platform === 'twitter') return 'video'
   return 'unknown'
@@ -63,30 +64,55 @@ export async function fetchLinkPreview(url: string): Promise<LinkPreviewResult> 
 
   // --- STRATEGY 2: Twitter Specific Fallbacks (Browser-side) ---
   if (platform === 'twitter') {
-    // Only try if local API failed and we are in a browser context that might allow it
-    // Note: Most likely to fail due to CORS, but worth a shot as a second fallback
-    const apiUri = normalizedUrl
+    // Try api.fxtwitter.com (Standard)
+    const apiFxt = normalizedUrl
       .replace(/(?:x|twitter)\.com/, 'api.fxtwitter.com')
       .split('?')[0]
+    
+    // Try api.vxtwitter.com (Alternative)
+    const apiVxt = normalizedUrl
+      .replace(/(?:x|twitter)\.com/, 'api.vxtwitter.com')
+      .split('?')[0]
 
-    try {
-      const res = await fetchWithTimeout(apiUri, { timeout: 4000 })
-      if (res.ok) {
-        const data = await res.json()
-        const tweet = data.tweet || data
-        if (tweet && (tweet.text || tweet.description)) {
-          return {
-            title: (tweet.text || tweet.description || '').slice(0, 100).replace(/\n/g, ' '),
-            description: tweet.text || tweet.description || '',
-            thumbnail: tweet.media?.all?.[0]?.url || tweet.author?.avatar_url || '',
-            platform,
-            mediaType: (tweet.media?.all?.[0]?.type === 'video' || tweet.has_video) ? 'video' : 'image',
-            url: normalizedUrl,
+    for (const apiUri of [apiFxt, apiVxt]) {
+      try {
+        const res = await fetchWithTimeout(apiUri, { timeout: 3500 })
+        if (res.ok) {
+          const data = await res.json()
+          const tweet = data.tweet || data
+          if (tweet && (tweet.text || tweet.description)) {
+            const media = tweet.media?.all?.[0] || tweet.media?.mosaic?.get?.[0] || tweet.media?.photos?.[0] || tweet.media?.video
+            return {
+              title: (tweet.text || tweet.description || '').slice(0, 150).replace(/\n/g, ' '),
+              description: tweet.text || tweet.description || '',
+              thumbnail: media?.url || media?.thumbnail_url || tweet.author?.avatar_url || '',
+              platform,
+              mediaType: (media?.type === 'video' || !!tweet.has_video || !!tweet.video) ? 'video' : 'image',
+              url: normalizedUrl,
+            }
           }
         }
+      } catch (err) {
+        // next retry
+      }
+    }
+  }
+
+  // --- STRATEGY 2.5: Scraping Proxy via Fallback sites ---
+  if (platform === 'twitter' || platform === 'instagram') {
+    const proxyUrl = platform === 'twitter' 
+      ? normalizedUrl.replace(/(?:x|twitter)\.com/, 'vxtwitter.com')
+      : normalizedUrl
+    
+    try {
+      const crossRes = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(proxyUrl)}`, { timeout: 6000 })
+      if (crossRes.ok) {
+        const crossData = await crossRes.json()
+        const result = parseMetaTags(crossData.contents, normalizedUrl, platform, mediaType)
+        if (result.thumbnail || (result.title && result.title !== normalizedUrl)) return result
       }
     } catch (err) {
-      // ignore
+      console.warn('Scraping fallback error:', err)
     }
   }
 
@@ -95,37 +121,31 @@ export async function fetchLinkPreview(url: string): Promise<LinkPreviewResult> 
     const crossRes = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(normalizedUrl)}`, { timeout: 7000 })
     if (crossRes.ok) {
       const crossData = await crossRes.json()
-      const html = crossData.contents
+      const result = parseMetaTags(crossData.contents, normalizedUrl, platform, mediaType)
+      if (result.title || result.thumbnail) return result
+    }
+  } catch (err) {
+    console.warn('AllOrigins fallback error:', err)
+  }
 
-      const getMeta = (prop: string) => {
-        const regexes = [
-          new RegExp(`<meta[^>]+(?:property|name)=["'](?:og:|twitter:)?${prop}["'][^>]+content=["']([^"']+)["']`, 'i'),
-          new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:|twitter:)?${prop}["']`, 'i')
-        ]
-        for (const regex of regexes) {
-          const match = html.match(regex)
-          if (match?.[1]) return match[1]
-        }
-        return ''
-      }
-
-      const title = getMeta('title') || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || ''
-      const thumbnail = getMeta('image') || getMeta('image:src') || getMeta('thumbnail')
-      const description = getMeta('description')
-
-      if (title || thumbnail) {
+  // --- STRATEGY 4: External API Fallback (Microlink) ---
+  try {
+    const res = await fetchWithTimeout(`https://api.microlink.io?url=${encodeURIComponent(normalizedUrl)}`, { timeout: 6000 })
+    if (res.ok) {
+      const data = await res.json()
+      if (data.status === 'success') {
         return {
-          title: (title || normalizedUrl).trim(),
-          description: (description || '').trim(),
-          thumbnail: (thumbnail || '').trim(),
+          title: data.data.title || '',
+          description: data.data.description || '',
+          thumbnail: data.data.image?.url || data.data.logo?.url || '',
           platform,
-          mediaType,
+          mediaType: data.data.video?.url ? 'video' : mediaType,
           url: normalizedUrl,
         }
       }
     }
   } catch (err) {
-    console.warn('AllOrigins fallback error:', err)
+    console.warn('Microlink error:', err)
   }
 
   // --- STRATEGY 4: Platform specific constants (YouTube) ---
@@ -150,5 +170,33 @@ export async function fetchLinkPreview(url: string): Promise<LinkPreviewResult> 
     platform,
     mediaType,
     url: normalizedUrl
+  }
+}
+
+function parseMetaTags(html: string, url: string, platform: Platform, defaultMediaType: MediaType): LinkPreviewResult {
+  const getMeta = (prop: string) => {
+    const regexes = [
+      new RegExp(`<meta[^>]+(?:property|name)=["'](?:og:|twitter:)?${prop}["'][^>]+content=["']([^"']+)["']`, 'i'),
+      new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:|twitter:)?${prop}["']`, 'i')
+    ]
+    for (const regex of regexes) {
+      const match = html.match(regex)
+      if (match?.[1]) return match[1]
+    }
+    return ''
+  }
+
+  const title = getMeta('title') || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || ''
+  const thumbnail = getMeta('image') || getMeta('image:src') || getMeta('thumbnail')
+  const description = getMeta('description')
+  const isVideo = !!getMeta('video') || !!getMeta('video:url') || !!getMeta('video:secure_url')
+
+  return {
+    title: (title || url).trim(),
+    description: (description || '').trim(),
+    thumbnail: (thumbnail || '').trim(),
+    platform,
+    mediaType: isVideo ? 'video' : defaultMediaType,
+    url: url,
   }
 }

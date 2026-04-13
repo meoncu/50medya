@@ -1,14 +1,32 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useGroups } from '../hooks/useGroups'
-import { ChevronRight, ArrowLeft, Search } from 'lucide-react'
+import { useStore } from '../store'
+import { ChevronRight, ArrowLeft, Search, Plus, Edit2 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { Group } from '../types'
+import { GroupModal } from '../components/group/GroupModal'
 
 export function Groups() {
   const { groups } = useGroups()
+  const user = useStore((s) => s.user)
+  const isAdmin = user?.isAdmin
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [groupToEdit, setGroupToEdit] = useState<Group | null>(null)
+
+  function openEditModal(e: React.MouseEvent, g: Group) {
+    e.preventDefault()
+    e.stopPropagation()
+    setGroupToEdit(g)
+    setIsModalOpen(true)
+  }
+
+  function openAddModal() {
+    setGroupToEdit(null)
+    setIsModalOpen(true)
+  }
 
   const displayedGroups = useMemo(() => {
     let result = groups.filter(g => g.visible)
@@ -46,17 +64,28 @@ export function Groups() {
           </p>
         </div>
 
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={18} className="text-slate-400" />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative flex-1 sm:flex-none">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search size={18} className="text-slate-400" />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Grup ara..."
+              className="w-full sm:w-64 pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-400 transition-all shadow-sm"
+            />
           </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Grup ara..."
-            className="w-full sm:w-64 pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-400 transition-all shadow-sm"
-          />
+          {isAdmin && (
+            <button
+              onClick={openAddModal}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-500 text-white text-sm font-bold rounded-xl hover:bg-primary-600 transition-colors shadow-sm whitespace-nowrap"
+            >
+              <Plus size={18} />
+              Grup Ekle
+            </button>
+          )}
         </div>
       </div>
 
@@ -70,10 +99,18 @@ export function Groups() {
               <button
                 key={g.id}
                 onClick={() => setSelectedParentId(g.id)}
-                className="group relative flex flex-col items-center gap-4 p-6 bg-white rounded-[2.5rem] border-2 border-slate-100 shadow-sm hover:border-primary-400 hover:shadow-xl hover:shadow-primary-500/10 transition-all duration-300 transform hover:-translate-y-1 active:scale-95"
+                className="group/btn relative flex flex-col items-center gap-4 p-6 bg-white rounded-[2.5rem] border-2 border-slate-100 shadow-sm hover:border-primary-400 hover:shadow-xl hover:shadow-primary-500/10 transition-all duration-300 transform hover:-translate-y-1 active:scale-95"
               >
+                {isAdmin && (
+                  <button
+                    onClick={(e) => openEditModal(e, g)}
+                    className="absolute top-4 left-4 p-2 bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-primary-500 rounded-xl transition-all z-10 opacity-0 group-hover/btn:opacity-100"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                )}
                 <div className="relative">
-                  <span className="text-5xl group-hover:scale-110 transition-transform duration-300 block">{g.icon}</span>
+                  <span className="text-5xl group-hover/btn:scale-110 transition-transform duration-300 block">{g.icon}</span>
                   <div className="absolute -top-1 -right-1 w-6 h-6 bg-primary-500 text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-lg border-2 border-white">
                     {subCount}
                   </div>
@@ -82,7 +119,7 @@ export function Groups() {
                   <span className="text-sm font-bold text-slate-800 block mb-0.5">{g.name}</span>
                   <span className="text-[10px] font-bold text-primary-500 uppercase tracking-widest bg-primary-50 px-2 py-0.5 rounded-full">Klasör</span>
                 </div>
-                <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute bottom-4 right-4 opacity-0 group-hover/btn:opacity-100 transition-opacity">
                   <ChevronRight size={16} className="text-primary-400" />
                 </div>
               </button>
@@ -94,14 +131,22 @@ export function Groups() {
             <Link
               key={g.id}
               to={`/grup/${g.slug}`}
-              className="group relative flex flex-col items-center gap-4 p-6 bg-white rounded-[2.5rem] border-2 border-slate-100 shadow-sm hover:border-primary-400 hover:shadow-xl hover:shadow-primary-500/10 transition-all duration-300 transform hover:-translate-y-1 active:scale-95"
+              className="group/btn relative flex flex-col items-center gap-4 p-6 bg-white rounded-[2.5rem] border-2 border-slate-100 shadow-sm hover:border-primary-400 hover:shadow-xl hover:shadow-primary-500/10 transition-all duration-300 transform hover:-translate-y-1 active:scale-95"
             >
-              <span className="text-5xl group-hover:scale-110 transition-transform duration-300 block">{g.icon}</span>
+              {isAdmin && (
+                <button
+                  onClick={(e) => openEditModal(e, g)}
+                  className="absolute top-4 left-4 p-2 bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-primary-500 rounded-xl transition-all z-10 opacity-0 group-hover/btn:opacity-100"
+                >
+                  <Edit2 size={16} />
+                </button>
+              )}
+              <span className="text-5xl group-hover/btn:scale-110 transition-transform duration-300 block">{g.icon}</span>
               <div className="text-center">
                 <span className="text-sm font-bold text-slate-800 block mb-0.5">{g.name}</span>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{subCount > 0 ? `${subCount} Alt Grup` : 'İçerikler'}</span>
               </div>
-              <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute bottom-4 right-4 opacity-0 group-hover/btn:opacity-100 transition-opacity">
                 <ChevronRight size={16} className="text-primary-400" />
               </div>
             </Link>
@@ -115,6 +160,13 @@ export function Groups() {
           </div>
         )}
       </div>
+
+      <GroupModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        groupToEdit={groupToEdit}
+        initialParentId={selectedParentId}
+      />
     </div>
   )
 }
