@@ -125,6 +125,7 @@ export function AdminGroups() {
   const [parentId, setParentId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({})
+  const [searchQuery, setSearchQuery] = useState('')
 
   const toggleExpand = (id: string) => {
     setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }))
@@ -132,8 +133,25 @@ export function AdminGroups() {
 
   // Hierarchical groups for rendering with collapse/expand logic
   const sortedHierarchicalGroups = useMemo(() => {
-    const roots = groups.filter(g => !g.parentId)
-    const children = groups.filter(g => g.parentId)
+    let baseGroups = groups
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      baseGroups = groups.filter(g => 
+        g.name.toLowerCase().includes(q) || 
+        g.icon.includes(q)
+      )
+      // If searching, show as flat list or find parents? 
+      // Simplified: filter and show
+      return baseGroups.map(g => ({
+        group: g,
+        isChild: false,
+        hasChildren: false,
+        isExpanded: false
+      }))
+    }
+
+    const roots = baseGroups.filter(g => !g.parentId)
+    const children = baseGroups.filter(g => g.parentId)
     
     let result: { group: Group, isChild: boolean, hasChildren: boolean, isExpanded: boolean }[] = []
     
@@ -174,7 +192,7 @@ export function AdminGroups() {
     })
 
     return result
-  }, [groups, expandedIds])
+  }, [groups, expandedIds, searchQuery])
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -268,18 +286,29 @@ export function AdminGroups() {
     <div className="p-4">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-slate-800">Grup Yönetimi</h1>
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
+        <div className="relative flex-1 group w-full">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Gruplarda ara..."
+            className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-400 transition-all shadow-sm"
+          />
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto">
           {groups.length === 0 && (
             <button
               onClick={handleSeed}
-              className="px-3 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50"
             >
               Varsayılanlar
             </button>
           )}
           <button
             onClick={() => { setShowForm(true); setEditGroup(null); setName(''); setIcon('📁'); setParentId(null) }}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-bold rounded-xl hover:bg-primary-600 transition-colors shadow-sm"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-bold rounded-xl hover:bg-primary-600 transition-colors shadow-sm"
           >
             <Plus size={16} />
             Yeni Grup

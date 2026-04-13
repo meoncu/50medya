@@ -55,15 +55,16 @@ export function GroupSelect({ groups, value, onChange, disabled, className, trig
 
       {isOpen && (
         <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-          <div className="p-2 border-b border-slate-100 flex items-center gap-2 text-slate-400 px-3 bg-slate-50">
-            <Search size={16} />
+          <div className="p-3 border-b border-slate-200 flex items-center gap-2 text-slate-500 bg-white">
+            <Search size={18} className="shrink-0" />
             <input
               autoFocus
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Ara..."
-              className="w-full bg-transparent text-sm text-slate-800 focus:outline-none h-8"
+              placeholder="Grup ara..."
+              className="w-full bg-transparent text-sm text-slate-900 focus:outline-none h-10"
+              onClick={(e) => e.stopPropagation()}
             />
           </div>
           <div className="max-h-60 overflow-y-auto p-1">
