@@ -26,13 +26,7 @@ export default function App() {
         <Route element={<AppProviders />}>
           <Route path="/login" element={<Login />} />
 
-          <Route
-            element={
-              <AuthGuard>
-                <Layout />
-              </AuthGuard>
-            }
-          >
+          <Route element={<Layout />}>
             <Route path="/" element={<Home />} />
             <Route path="/gruplar" element={<Groups />} />
             <Route path="/grup/:slug" element={<GroupPage />} />

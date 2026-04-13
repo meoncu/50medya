@@ -10,6 +10,7 @@ import {
   orderBy,
   onSnapshot,
   Timestamp,
+  increment,
   type Query,
   type DocumentData,
 } from 'firebase/firestore'
@@ -30,7 +31,15 @@ function toPost(id: string, data: DocumentData): Post {
     createdBy: data.createdBy,
     published: data.published ?? true,
     viewerNotes: data.viewerNotes,
+    views: data.views || 0,
   }
+}
+
+export async function incrementPostView(id: string): Promise<void> {
+  const postRef = doc(db, 'posts', id)
+  await updateDoc(postRef, {
+    views: increment(1)
+  })
 }
 
 export async function addPost(post: Omit<Post, 'id'>): Promise<string> {

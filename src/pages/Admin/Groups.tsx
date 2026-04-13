@@ -21,6 +21,7 @@ import { addGroup, updateGroup, deleteGroup, seedDefaultGroups } from '../../ser
 import { useStore } from '../../store'
 import { cn } from '../../lib/utils'
 import type { Group } from '../../types'
+import { GroupSelect } from '../../components/ui/GroupSelect'
 
 function SortableGroup({
   group,
@@ -318,18 +319,14 @@ export function AdminGroups() {
 
           <div className="mb-5">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1 block mb-1">Üst Grup</label>
-            <select
+            <GroupSelect
+              groups={groups.filter(g => g.id !== editGroup?.id && !g.parentId)}
               value={parentId || ''}
-              onChange={(e) => setParentId(e.target.value || null)}
-              className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all cursor-pointer"
-            >
-              <option value="">(Ana Grup - Üst grup yok)</option>
-              {groups
-                .filter(g => g.id !== editGroup?.id && !g.parentId) 
-                .map(g => (
-                  <option key={g.id} value={g.id}>{g.icon} {g.name}</option>
-                ))}
-            </select>
+              onChange={(v) => setParentId(v || null)}
+              placeholder="(Ana Grup - Üst grup yok)"
+              className="w-full"
+              triggerClassName="h-[46px]"
+            />
           </div>
 
           <div className="flex gap-2">

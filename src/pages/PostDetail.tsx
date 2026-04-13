@@ -3,11 +3,13 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Download, Share2, ExternalLink, Copy, Check, Sparkles, RefreshCw, StickyNote, Save, Edit3 } from 'lucide-react'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../services/firebase'
+import { incrementPostView } from '../services/posts'
 import type { Post } from '../types'
 import { platformLabel, platformColor, timeAgo, cn, getHierarchicalGroups } from '../lib/utils'
 import { useStore } from '../store'
 import { SummaryModal } from '../components/ui/SummaryModal'
 import { fetchLinkPreview } from '../services/linkPreview'
+import { GroupSelect } from '../components/ui/GroupSelect'
 
 export function PostDetail() {
   const { id } = useParams<{ id: string }>()
@@ -59,6 +61,8 @@ export function PostDetail() {
       setEditTitle(postData.title || '')
       setEditDescription(postData.description || '')
       setSelectedGroupId(postData.groupId || '')
+
+      incrementPostView(id).catch(console.error)
 
       // Auto-sync if it's a generic placeholder
       if ((postData.platform === 'twitter' && postData.title === 'X (Twitter) Paylaşımı' && !syncing) ||
@@ -267,9 +271,15 @@ export function PostDetail() {
             })()}
           </div>
         ) : post.thumbnail && (
-          <div className="relative w-full aspect-video bg-slate-100">
+          <a 
+            href={post.url} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="block relative w-full aspect-video bg-slate-100"
+            onClick={() => incrementPostView(post.id)}
+          >
             <img src={post.thumbnail} alt={post.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-          </div>
+          </a>
         )}
 
         <div className="p-4">
@@ -306,18 +316,13 @@ export function PostDetail() {
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Grup (Kategori)</label>
-                <select
+                <GroupSelect
+                  groups={groups}
                   value={selectedGroupId}
-                  onChange={(e) => setSelectedGroupId(e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
-                >
-                  <option value="">Grup (Kategori) Seçin</option>
-                  {getHierarchicalGroups(groups).map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.displayLabel}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedGroupId}
+                  className="w-full"
+                  triggerClassName="bg-slate-50"
+                />
               </div>
               <div className="flex justify-end gap-2">
                 <button
@@ -410,7 +415,13 @@ export function PostDetail() {
 
           <p className="text-xs text-slate-400 mb-4">{timeAgo(post.createdAt)}</p>
 
-          <a href={post.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-primary-600 hover:underline mb-6 break-all">
+          <a 
+            href={post.url} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="flex items-center gap-1.5 text-sm text-primary-600 hover:underline mb-6 break-all"
+            onClick={() => incrementPostView(post.id)}
+          >
             <ExternalLink size={14} />
             Kaynağa git
           </a>

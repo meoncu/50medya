@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Download, Share2, Play, Image as ImageIcon, RefreshCw, StickyNote } from 'lucide-react'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../services/firebase'
+import { incrementPostView } from '../../services/posts'
 import type { Post } from '../../types'
 import { platformLabel, platformColor, timeAgo, cn } from '../../lib/utils'
 import { useStore } from '../../store'
@@ -64,7 +65,13 @@ export function PostCard({ post: initialPost, groupName }: PostCardProps) {
 
   return (
     <article className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
-      <Link to={`/post/${post.id}`} className="block relative">
+      <a 
+        href={post.url} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="block relative"
+        onClick={() => incrementPostView(post.id)}
+      >
         <div className="relative w-full aspect-video bg-slate-100">
           {post.thumbnail && !imgError ? (
             <img
@@ -91,7 +98,7 @@ export function PostCard({ post: initialPost, groupName }: PostCardProps) {
             </div>
           )}
         </div>
-      </Link>
+      </a>
 
       <div className="p-3">
         <div className="flex items-center gap-2 mb-2 flex-wrap">

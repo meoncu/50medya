@@ -5,6 +5,7 @@ import { fetchLinkPreview } from '../../services/linkPreview'
 import { useStore } from '../../store'
 import type { Post } from '../../types'
 import { cn, getHierarchicalGroups } from '../../lib/utils'
+import { GroupSelect } from '../ui/GroupSelect'
 
 export function QuickAddPost() {
   const [url, setUrl] = useState('')
@@ -154,18 +155,13 @@ export function QuickAddPost() {
             )}
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <select
+              <GroupSelect
+                groups={groups}
                 value={selectedGroupId}
-                onChange={(e) => setSelectedGroupId(e.target.value)}
-                className="flex-1 px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-primary-400 outline-none appearance-none cursor-pointer"
-              >
-                <option value="">Grup (Kategori) Seçin</option>
-                {getHierarchicalGroups(groups).map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.displayLabel}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedGroupId}
+                className="flex-1"
+                triggerClassName="bg-slate-50 border-none h-[48px]"
+              />
 
               <button
                 onClick={handleSave}

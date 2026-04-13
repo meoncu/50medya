@@ -1,17 +1,23 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useGroups } from '../hooks/useGroups'
-import { ChevronRight, ArrowLeft } from 'lucide-react'
+import { ChevronRight, ArrowLeft, Search } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { Group } from '../types'
 
 export function Groups() {
   const { groups } = useGroups()
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const displayedGroups = useMemo(() => {
-    return groups.filter(g => g.parentId === selectedParentId && g.visible)
-  }, [groups, selectedParentId])
+    let result = groups.filter(g => g.visible)
+    if (searchQuery.trim()) {
+       const q = searchQuery.toLowerCase()
+       return result.filter(g => g.name.toLowerCase().includes(q))
+    }
+    return result.filter(g => g.parentId === selectedParentId)
+  }, [groups, selectedParentId, searchQuery])
 
   const parentGroup = useMemo(() => {
     return groups.find(g => g.id === selectedParentId)
@@ -19,7 +25,7 @@ export function Groups() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 pt-6 pb-20">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 border-b border-slate-100 pb-4">
         <div>
           {selectedParentId ? (
             <button 
@@ -38,6 +44,19 @@ export function Groups() {
           <p className="text-sm text-slate-500 font-medium">
             {parentGroup ? 'Alt gruplardan birini seçin' : 'Kategorilere göz atarak içerikleri keşfedin'}
           </p>
+        </div>
+
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search size={18} className="text-slate-400" />
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Grup ara..."
+            className="w-full sm:w-64 pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-400 transition-all shadow-sm"
+          />
         </div>
       </div>
 

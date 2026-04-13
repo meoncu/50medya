@@ -1,7 +1,30 @@
 {
+  "version": 2,
+  "activeInstanceId": "legacy-https-n8n-ankebut-com-tr-WHflo3Y69qR0I91B",
+  "instances": [
+    {
+      "id": "legacy-https-n8n-ankebut-com-tr-WHflo3Y69qR0I91B",
+      "name": "n8n.ankebut.com.tr",
+      "host": "https://n8n.ankebut.com.tr",
+      "syncFolder": "workflows",
+      "projectId": "WHflo3Y69qR0I91B",
+      "projectName": "Personal",
+      "instanceIdentifier": "n8n_ankebut_com_tr_emre_ö",
+      "workflowDir": "workflows/n8n_ankebut_com_tr_emre_ö/personal",
+      "verification": {
+        "status": "verified",
+        "normalizedHost": "https://n8n.ankebut.com.tr",
+        "userId": "853a419a-32d3-4dd4-8d65-452ec5cad6c7",
+        "userName": "emre öncü",
+        "userEmail": "meoncu@gmail.com",
+        "lastCheckedAt": "2026-04-13T06:49:47.595Z"
+      }
+    }
+  ],
   "host": "https://n8n.ankebut.com.tr",
   "syncFolder": "workflows",
   "projectId": "WHflo3Y69qR0I91B",
   "projectName": "Personal",
-  "instanceIdentifier": "n8n_ankebut_com_tr_emre_ö"
+  "instanceIdentifier": "n8n_ankebut_com_tr_emre_ö",
+  "workflowDir": "workflows/n8n_ankebut_com_tr_emre_ö/personal"
 }

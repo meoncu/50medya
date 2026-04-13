@@ -14,6 +14,7 @@ export interface Post {
   createdBy: string
   published: boolean
   viewerNotes?: string
+  views?: number
 }
 
 export interface Group {

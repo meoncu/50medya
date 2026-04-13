@@ -6,6 +6,7 @@ import { fetchLinkPreview } from '../../services/linkPreview'
 import { useStore } from '../../store'
 import type { Post } from '../../types'
 import { platformLabel, platformColor, timeAgo, getHierarchicalGroups } from '../../lib/utils'
+import { GroupSelect } from '../../components/ui/GroupSelect'
 
 export function AdminPosts() {
   const [posts, setPosts] = useState<Post[]>([])
@@ -225,18 +226,12 @@ export function AdminPosts() {
           )}
 
           <div className="flex gap-2 items-center">
-            <select
+            <GroupSelect
+              groups={groups}
               value={selectedGroupId}
-              onChange={(e) => setSelectedGroupId(e.target.value)}
-              className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
-            >
-              <option value="">Grup (Kategori) Seçin</option>
-              {getHierarchicalGroups(groups).map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.displayLabel}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedGroupId}
+              className="flex-1"
+            />
 
             <button
               onClick={handleSave}
