@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Plus, Trash2, Edit2, Check, X, Eye, EyeOff, FolderPlus, ChevronRight, ChevronDown } from 'lucide-react'
+import { GripVertical, Plus, Trash2, Edit2, Check, X, Eye, EyeOff, FolderPlus, ChevronRight, ChevronDown, Search } from 'lucide-react'
 import { addGroup, updateGroup, deleteGroup, seedDefaultGroups } from '../../services/groups'
 import { useStore } from '../../store'
 import { cn } from '../../lib/utils'
