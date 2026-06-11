@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Post } from '../../types'
 import { PostCard } from './PostCard'
 
@@ -7,6 +8,29 @@ interface PostGridProps {
 }
 
 export function PostGrid({ posts, loading }: PostGridProps) {
+  const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set())
+
+  const handleSelect = (postId: string) => {
+    setSelectedPosts(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(postId)) {
+        newSet.delete(postId)
+      } else {
+        newSet.add(postId)
+      }
+      return newSet
+    })
+  }
+
+  const handleDelete = (postId: string) => {
+    // This will be handled by parent, but we can update local state
+    setSelectedPosts(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(postId)
+      return newSet
+    })
+  }
+
   if (loading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
@@ -36,7 +60,13 @@ export function PostGrid({ posts, loading }: PostGridProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
       {posts.map((post) => (
-        <PostCard key={post.id} post={post} />
+        <PostCard 
+          key={post.id} 
+          post={post} 
+          isSelected={selectedPosts.has(post.id)}
+          onSelect={handleSelect}
+          onDelete={handleDelete}
+        />
       ))}
     </div>
   )

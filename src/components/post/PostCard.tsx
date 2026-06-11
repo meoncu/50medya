@@ -1,20 +1,23 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, Share2, Play, Image as ImageIcon, RefreshCw, StickyNote } from 'lucide-react'
-import { doc, updateDoc } from 'firebase/firestore'
+import { Download, Share2, Play, Image as ImageIcon, RefreshCw, StickyNote, Trash2 } from 'lucide-react'
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { db } from '../../services/firebase'
 import { incrementPostView } from '../../services/posts'
 import type { Post } from '../../types'
-import { platformLabel, platformColor, timeAgo, cn } from '../../lib/utils'
+import { platformLabel, platformColor, cn } from '../../lib/utils'
 import { useStore } from '../../store'
 import { fetchLinkPreview } from '../../services/linkPreview'
 
 interface PostCardProps {
   post: Post
   groupName?: string
+  isSelected?: boolean
+  onSelect?: (postId: string) => void
+  onDelete?: (postId: string) => void
 }
 
-export function PostCard({ post: initialPost, groupName }: PostCardProps) {
+export function PostCard({ post: initialPost, groupName, isSelected, onSelect, onDelete }: PostCardProps) {
   const [post, setPost] = useState(initialPost)
   const user = useStore((s) => s.user)
   const groups = useStore((s) => s.groups)
@@ -22,11 +25,11 @@ export function PostCard({ post: initialPost, groupName }: PostCardProps) {
   const [imgError, setImgError] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const isAdmin = user?.email === import.meta.env.VITE_ADMIN_EMAIL
 
   // Auto-sync if data is missing and user is admin
   useEffect(() => {
     // Only internal/admin sync
-    const isAdmin = user?.email === import.meta.env.VITE_ADMIN_EMAIL
     const isGeneric = post.title === 'X (Twitter) Paylaşımı' || post.title === post.url
     const isMissingThumb = !post.thumbnail
 
@@ -85,8 +88,31 @@ export function PostCard({ post: initialPost, groupName }: PostCardProps) {
     }
   }
 
+  async function handleDeleteClick(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (confirm('Bu postu silmek istediğinize emin misiniz?')) {
+      await deleteDoc(doc(db, 'posts', post.id))
+      onDelete?.(post.id)
+    }
+  }
+
   return (
-    <article className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+    <article className="relative bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+      {isAdmin && (
+        <div className="absolute top-2 left-2 z-10">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelect?.(post.id)
+            }}
+            className="w-5 h-5 text-primary-600 rounded border-slate-300 focus:ring-primary-500"
+          />
+        </div>
+      )}
       <a 
         href={post.url} 
         target="_blank" 
@@ -142,7 +168,6 @@ export function PostCard({ post: initialPost, groupName }: PostCardProps) {
 
         <div className="mt-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">{timeAgo(post.createdAt)}</span>
             {post.viewerNotes && (
               <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-100">
                 <StickyNote size={10} />
@@ -173,6 +198,15 @@ export function PostCard({ post: initialPost, groupName }: PostCardProps) {
             >
               <StickyNote size={16} />
             </Link>
+            {isAdmin && (
+              <button
+                onClick={handleDeleteClick}
+                className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Sil"
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
           </div>
         </div>
       </div>
