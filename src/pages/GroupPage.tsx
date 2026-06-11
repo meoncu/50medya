@@ -2,6 +2,7 @@ import { useParams, Link } from 'react-router-dom'
 import { usePosts } from '../hooks/usePosts'
 import { useGroups } from '../hooks/useGroups'
 import { PostGrid } from '../components/post/PostGrid'
+import { QuickAddPost } from '../components/post/QuickAddPost'
 import { ChevronRight, ArrowLeft } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -72,6 +73,9 @@ export function GroupPage() {
           </div>
         </div>
       </div>
+
+      {/* Quick Add Post */}
+      <QuickAddPost preSelectedGroupId={group?.id} />
 
       {/* Subgroups Section - drill down */}
       {subGroups.length > 0 && (

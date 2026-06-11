@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Check, X, Sparkles, Image as ImageIcon } from 'lucide-react'
 import { addPost } from '../../services/posts'
 import { fetchLinkPreview } from '../../services/linkPreview'
@@ -7,7 +7,11 @@ import type { Post } from '../../types'
 import { cn, getHierarchicalGroups } from '../../lib/utils'
 import { GroupSelect } from '../ui/GroupSelect'
 
-export function QuickAddPost() {
+interface QuickAddPostProps {
+  preSelectedGroupId?: string
+}
+
+export function QuickAddPost({ preSelectedGroupId }: QuickAddPostProps) {
   const [url, setUrl] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
   const [fetching, setFetching] = useState(false)
@@ -19,6 +23,12 @@ export function QuickAddPost() {
   const groups = useStore(s => s.groups)
   // Check if admin email matches (using VITE_ADMIN_EMAIL from environment)
   const isAdmin = user?.email === import.meta.env.VITE_ADMIN_EMAIL
+
+  useEffect(() => {
+    if (preSelectedGroupId) {
+      setSelectedGroupId(preSelectedGroupId)
+    }
+  }, [preSelectedGroupId])
 
   if (!isAdmin) return null
 
