@@ -21,6 +21,7 @@ export function PostCard({ post: initialPost, groupName }: PostCardProps) {
   const group = groups.find((g) => g.id === post.groupId)
   const [imgError, setImgError] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   // Auto-sync if data is missing and user is admin
   useEffect(() => {
@@ -60,6 +61,27 @@ export function PostCard({ post: initialPost, groupName }: PostCardProps) {
       await navigator.share({ title: post.title, url: post.url })
     } else {
       await navigator.clipboard.writeText(post.url)
+    }
+  }
+
+  async function handleDownload(e: React.MouseEvent) {
+    e.preventDefault()
+    if (downloading) return
+    setDownloading(true)
+    try {
+      const res = await fetch(`/api/download?url=${encodeURIComponent(post.url)}&type=${post.mediaType}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.downloadUrl) {
+          window.open(data.downloadUrl, '_blank')
+          return
+        }
+      }
+      alert('İndirme şu an başlatılamadı.')
+    } catch (err) {
+      alert('Servis hatası.')
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -129,16 +151,14 @@ export function PostCard({ post: initialPost, groupName }: PostCardProps) {
             )}
           </div>
           <div className="flex items-center gap-1">
-            <a
-              href={`/api/download?url=${encodeURIComponent(post.url)}&type=${post.mediaType}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="p-1.5 text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50"
               title="İndir"
-              onClick={(e) => e.stopPropagation()}
             >
-              <Download size={16} />
-            </a>
+              <Download size={16} className={downloading ? 'animate-spin' : ''} />
+            </button>
             <button
               onClick={handleShare}
               className="p-1.5 text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"

@@ -1,11 +1,13 @@
 export const config = { runtime: 'edge' }
 
-const COBALT_API = 'https://api.cobalt.tools/api/json'
+const COBALT_API = 'https://co.wuk.sh/api/json'
 
 export default async function handler(req: Request) {
   const { searchParams } = new URL(req.url)
   const url = searchParams.get('url')
   const type = searchParams.get('type') || 'video'
+
+  console.log('Download API called with:', { url, type })
 
   if (!url) {
     return new Response(JSON.stringify({ error: 'url required' }), {
@@ -38,15 +40,20 @@ export default async function handler(req: Request) {
       }),
     })
 
+    console.log('Cobalt response status:', cobaltRes.status)
+
     if (!cobaltRes.ok) {
       const errorText = await cobaltRes.text()
       console.error('Cobalt error response:', errorText)
-      throw new Error('Cobalt API error')
+      throw new Error('Cobalt API error: ' + errorText)
     }
 
     const data = await cobaltRes.json()
+    console.log('Cobalt data:', data)
     // Cobalt returns 'url', 'stream', or 'picker'
     const downloadUrl = data.url || data.stream || (data.picker && data.picker[0]?.url) || null
+
+    console.log('Returning downloadUrl:', downloadUrl)
 
     return new Response(JSON.stringify({ downloadUrl, status: data.status }), { headers })
   } catch (err) {

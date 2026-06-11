@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Download, Share2, ExternalLink, Copy, Check, Sparkles, RefreshCw, StickyNote, Save, Edit3 } from 'lucide-react'
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Download, Share2, ExternalLink, Copy, Check, Sparkles, RefreshCw, StickyNote, Save, Edit3, Trash2 } from 'lucide-react'
+import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import { incrementPostView } from '../services/posts'
 import type { Post } from '../types'
@@ -13,6 +13,7 @@ import { GroupSelect } from '../components/ui/GroupSelect'
 
 export function PostDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [post, setPost] = useState<Post | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
@@ -204,6 +205,17 @@ export function PostDetail() {
     }
   }
 
+  async function handleDelete() {
+    if (!id || !confirm('Bu postu silmek istediğinize emin misiniz?')) return
+    try {
+      await deleteDoc(doc(db, 'posts', id))
+      navigate('/')
+    } catch (err) {
+      console.error('Delete error:', err)
+      alert('Silme sırasında bir hata oluştu.')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -249,6 +261,13 @@ export function PostDetail() {
             >
               <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
               Bilgileri Güncelle
+            </button>
+            <button
+              onClick={handleDelete}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <Trash2 size={14} />
+              Sil
             </button>
           </div>
         )}
