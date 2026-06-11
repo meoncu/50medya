@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { NavLink, Link, useLocation } from 'react-router-dom'
-import { Home, Grid3X3, LayoutDashboard, FileText, Settings, Plus, ChevronDown, ChevronRight } from 'lucide-react'
+import { Home, Grid3X3, LayoutDashboard, FileText, Settings, Plus, ChevronDown, ChevronRight, Star, StarOff } from 'lucide-react'
 import { useStore } from '../../store'
 import { useGroups } from '../../hooks/useGroups'
+import { updateGroup } from '../../services/groups'
 import { cn } from '../../lib/utils'
 
 export function Sidebar() {
@@ -25,6 +26,15 @@ export function Sidebar() {
   const toggleGroup = (groupId: string, e: React.MouseEvent) => {
     e.preventDefault()
     setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
+  }
+
+  const toggleFavorite = async (groupId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const group = groups.find(g => g.id === groupId)
+    if (group) {
+      await updateGroup(groupId, { favorite: !group.favorite })
+    }
   }
 
   const mainGroups = groups.filter(g => !g.parentId)
@@ -102,6 +112,17 @@ export function Sidebar() {
                       <span className="truncate">{g.name}</span>
                     </NavLink>
                     
+                    <button
+                      onClick={(e) => toggleFavorite(g.id, e)}
+                      className={cn(
+                        "p-1.5 rounded-lg text-slate-300 hover:text-yellow-500 hover:bg-yellow-50 transition-all",
+                        g.favorite && "text-yellow-500"
+                      )}
+                      title={g.favorite ? "Favorilerden çıkar" : "Favorilere ekle"}
+                    >
+                      {g.favorite ? <Star size={14} fill="currentColor" /> : <StarOff size={14} />}
+                    </button>
+                    
                     {hasSubs && (
                       <button
                         onClick={(e) => toggleGroup(g.id, e)}
@@ -118,21 +139,33 @@ export function Sidebar() {
                   {hasSubs && isExpanded && (
                     <div className="pl-9 pr-2 flex flex-col gap-0.5 mt-0.5 border-l-2 border-slate-100 ml-5 animate-in slide-in-from-top-1 duration-200">
                       {subItems.map(subGroup => (
-                        <NavLink
-                          key={subGroup.id}
-                          to={`/grup/${subGroup.slug}`}
-                          className={({ isActive }) =>
-                            cn(
-                              'flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] transition-all border border-transparent',
-                              isActive
-                                ? 'text-primary-600 font-bold bg-primary-50/50 border-primary-50'
-                                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 font-medium'
-                            )
-                          }
-                        >
-                          <span className="text-base mr-1.5">{subGroup.icon}</span>
-                          <span className="truncate">{subGroup.name}</span>
-                        </NavLink>
+                        <div key={subGroup.id} className="flex items-center gap-0.5 group">
+                          <NavLink
+                            key={subGroup.id}
+                            to={`/grup/${subGroup.slug}`}
+                            className={({ isActive }) =>
+                              cn(
+                                'flex-1 flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] transition-all border border-transparent',
+                                isActive
+                                  ? 'text-primary-600 font-bold bg-primary-50/50 border-primary-50'
+                                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 font-medium'
+                              )
+                            }
+                          >
+                            <span className="text-base mr-1.5">{subGroup.icon}</span>
+                            <span className="truncate">{subGroup.name}</span>
+                          </NavLink>
+                          <button
+                            onClick={(e) => toggleFavorite(subGroup.id, e)}
+                            className={cn(
+                              "p-1 rounded-lg text-slate-300 hover:text-yellow-500 hover:bg-yellow-50 transition-all",
+                              subGroup.favorite && "text-yellow-500"
+                            )}
+                            title={subGroup.favorite ? "Favorilerden çıkar" : "Favorilere ekle"}
+                          >
+                            {subGroup.favorite ? <Star size={12} fill="currentColor" /> : <StarOff size={12} />}
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}

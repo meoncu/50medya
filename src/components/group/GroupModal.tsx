@@ -49,6 +49,7 @@ export function GroupModal({ isOpen, onClose, groupToEdit, initialParentId }: Gr
           icon,
           order: groups.length,
           visible: true,
+          favorite: false,
           parentId,
           createdAt: new Date(),
         })

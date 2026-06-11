@@ -26,6 +26,7 @@ export interface Group {
   visible: boolean
   createdAt: Date
   parentId?: string | null
+  favorite: boolean
 }
 
 export interface User {

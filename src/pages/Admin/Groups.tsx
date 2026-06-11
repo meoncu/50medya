@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Plus, Trash2, Edit2, Check, X, Eye, EyeOff, FolderPlus, ChevronRight, ChevronDown, Search } from 'lucide-react'
+import { GripVertical, Plus, Trash2, Edit2, Check, X, Eye, EyeOff, FolderPlus, ChevronRight, ChevronDown, Search, Star, StarOff } from 'lucide-react'
 import { addGroup, updateGroup, deleteGroup, seedDefaultGroups } from '../../services/groups'
 import { useStore } from '../../store'
 import { cn } from '../../lib/utils'
@@ -33,6 +33,7 @@ function SortableGroup({
   onToggle,
   onAddSub,
   onExpandToggle,
+  onFavoriteToggle,
 }: {
   group: Group
   isChild?: boolean
@@ -43,6 +44,7 @@ function SortableGroup({
   onToggle: (g: Group) => void
   onAddSub: (parentId: string) => void
   onExpandToggle?: (id: string) => void
+  onFavoriteToggle: (g: Group) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: group.id })
   const style = { 
@@ -80,6 +82,16 @@ function SortableGroup({
       </div>
 
       <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+        <button
+          onClick={() => onFavoriteToggle(group)}
+          className={cn(
+            "p-1.5 rounded-lg transition-colors",
+            group.favorite ? "text-yellow-500 hover:bg-yellow-50" : "text-slate-400 hover:text-yellow-500 hover:bg-yellow-50"
+          )}
+          title={group.favorite ? "Favorilerden çıkar" : "Favorilere ekle"}
+        >
+          {group.favorite ? <Star size={16} fill="currentColor" /> : <StarOff size={16} />}
+        </button>
         {!isChild && (
           <button
             onClick={() => onAddSub(group.id)}
@@ -226,6 +238,7 @@ export function AdminGroups() {
           icon,
           order: groups.length,
           visible: true,
+          favorite: false,
           parentId,
           createdAt: new Date(),
         })
@@ -275,6 +288,10 @@ export function AdminGroups() {
 
   async function handleToggle(g: Group) {
     await updateGroup(g.id, { visible: !g.visible })
+  }
+
+  async function handleFavoriteToggle(g: Group) {
+    await updateGroup(g.id, { favorite: !g.favorite })
   }
 
   async function handleSeed() {
@@ -393,6 +410,7 @@ export function AdminGroups() {
                 onToggle={handleToggle}
                 onAddSub={startAddSub}
                 onExpandToggle={toggleExpand}
+                onFavoriteToggle={handleFavoriteToggle}
               />
             ))}
           </div>

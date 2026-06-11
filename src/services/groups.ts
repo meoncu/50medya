@@ -22,6 +22,7 @@ function toGroup(id: string, data: DocumentData): Group {
     icon: data.icon ?? '📁',
     visible: data.visible ?? true,
     parentId: data.parentId ?? null,
+    favorite: data.favorite ?? false,
     createdAt: (data.createdAt as Timestamp)?.toDate() ?? new Date(),
   }
 }
